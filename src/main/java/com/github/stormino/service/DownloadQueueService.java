@@ -1,7 +1,11 @@
 package com.github.stormino.service;
 
 import com.github.stormino.config.VixSrcProperties;
-import com.github.stormino.model.*;
+import com.github.stormino.model.ContentMetadata;
+import com.github.stormino.model.DownloadStatus;
+import com.github.stormino.model.DownloadTask;
+import com.github.stormino.model.PlaylistInfo;
+import com.github.stormino.model.ProgressUpdate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;

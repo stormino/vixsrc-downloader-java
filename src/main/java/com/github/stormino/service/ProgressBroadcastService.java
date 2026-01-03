@@ -8,6 +8,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 @Slf4j
 @Service
@@ -16,7 +17,7 @@ public class ProgressBroadcastService {
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     // Vaadin UI listeners for push updates
-    private final CopyOnWriteArrayList<java.util.function.Consumer<ProgressUpdate>> uiListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Consumer<ProgressUpdate>> uiListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Register a new SSE emitter
@@ -39,7 +40,7 @@ public class ProgressBroadcastService {
     /**
      * Register a UI listener for push updates
      */
-    public void registerListener(java.util.function.Consumer<ProgressUpdate> listener) {
+    public void registerListener(Consumer<ProgressUpdate> listener) {
         uiListeners.add(listener);
         log.info("UI listener registered. Total: {}", uiListeners.size());
     }
@@ -47,7 +48,7 @@ public class ProgressBroadcastService {
     /**
      * Unregister a UI listener
      */
-    public void unregisterListener(java.util.function.Consumer<ProgressUpdate> listener) {
+    public void unregisterListener(Consumer<ProgressUpdate> listener) {
         uiListeners.remove(listener);
         log.info("UI listener unregistered. Remaining: {}", uiListeners.size());
     }
@@ -87,7 +88,7 @@ public class ProgressBroadcastService {
     }
 
     private void broadcastToUI(ProgressUpdate update) {
-        for (java.util.function.Consumer<ProgressUpdate> listener : uiListeners) {
+        for (Consumer<ProgressUpdate> listener : uiListeners) {
             try {
                 listener.accept(update);
             } catch (Exception e) {

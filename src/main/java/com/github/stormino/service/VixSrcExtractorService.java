@@ -8,8 +8,6 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -221,18 +219,24 @@ public class VixSrcExtractorService {
     private String buildPlaylistUrl(String base, String token, String expires, String language, String section) {
         // Extract ASN if present
         String asn = extractValue(section, "['\"]asn['\"]\\s*:\\s*['\"]([^'\"]*)['\"]");
-        
-        HttpUrl.Builder urlBuilder = HttpUrl.parse(base).newBuilder()
+
+        HttpUrl parsedUrl = HttpUrl.parse(base);
+        if (parsedUrl == null) {
+            log.warn("Failed to parse base URL: {}", base);
+            return base + "?token=" + token + "&expires=" + expires + "&h=1&lang=" + language;
+        }
+
+        HttpUrl.Builder urlBuilder = parsedUrl.newBuilder()
                 .addQueryParameter("token", token)
                 .addQueryParameter("expires", expires);
-        
+
         if (asn != null && !asn.isEmpty()) {
             urlBuilder.addQueryParameter("asn", asn);
         }
-        
+
         urlBuilder.addQueryParameter("h", "1")
                 .addQueryParameter("lang", language);
-        
+
         return urlBuilder.build().toString().replace("&amp;", "&");
     }
     

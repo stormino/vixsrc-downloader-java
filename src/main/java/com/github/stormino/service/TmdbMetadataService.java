@@ -1,7 +1,15 @@
 package com.github.stormino.service;
 
 import com.uwetrottmann.tmdb2.Tmdb;
-import com.uwetrottmann.tmdb2.entities.*;
+import com.uwetrottmann.tmdb2.entities.AppendToResponse;
+import com.uwetrottmann.tmdb2.entities.BaseMovie;
+import com.uwetrottmann.tmdb2.entities.BaseTvShow;
+import com.uwetrottmann.tmdb2.entities.Movie;
+import com.uwetrottmann.tmdb2.entities.MovieResultsPage;
+import com.uwetrottmann.tmdb2.entities.TvEpisode;
+import com.uwetrottmann.tmdb2.entities.TvSeason;
+import com.uwetrottmann.tmdb2.entities.TvShow;
+import com.uwetrottmann.tmdb2.entities.TvShowResultsPage;
 import com.uwetrottmann.tmdb2.enumerations.AppendToResponseItem;
 import com.github.stormino.model.ContentMetadata;
 import lombok.RequiredArgsConstructor;
@@ -45,13 +53,17 @@ public class TmdbMetadataService {
             }
             
             Movie movie = response.body();
-            
+
             Integer year = null;
-            if (movie.release_date != null) {
+            if (movie != null && movie.release_date != null) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy");
                 year = Integer.parseInt(sdf.format(movie.release_date));
             }
-            
+
+            if (movie == null) {
+                return Optional.empty();
+            }
+
             return Optional.of(ContentMetadata.builder()
                     .tmdbId(tmdbId)
                     .title(movie.title)
@@ -87,23 +99,28 @@ public class TmdbMetadataService {
             }
             
             TvShow show = showResponse.body();
-            
+
+            if (show == null) {
+                return Optional.empty();
+            }
+
             // Get episode info
             Response<TvEpisode> episodeResponse = tmdb.tvEpisodesService()
                     .episode(tmdbId, season, episode, null, null)
                     .execute();
-            
+
             String episodeName = null;
-            if (episodeResponse.isSuccessful() && episodeResponse.body() != null) {
-                episodeName = episodeResponse.body().name;
+            TvEpisode tvEpisode = episodeResponse.body();
+            if (episodeResponse.isSuccessful() && tvEpisode != null) {
+                episodeName = tvEpisode.name;
             }
-            
+
             Integer year = null;
             if (show.first_air_date != null) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy");
                 year = Integer.parseInt(sdf.format(show.first_air_date));
             }
-            
+
             return Optional.of(ContentMetadata.builder()
                     .tmdbId(tmdbId)
                     .title(show.name)
@@ -136,15 +153,20 @@ public class TmdbMetadataService {
             Response<MovieResultsPage> response = tmdb.searchService()
                     .movie(query, null, null, null, null, null, null)
                     .execute();
-            
-            if (!response.isSuccessful() || response.body() == null) {
+
+            MovieResultsPage page = response.body();
+            if (!response.isSuccessful() || page == null || page.results == null) {
                 log.warn("Movie search failed: {}", response.code());
                 return List.of();
             }
-            
+
             List<ContentMetadata> results = new ArrayList<>();
 
-            for (BaseMovie movie : response.body().results) {
+            for (BaseMovie movie : page.results) {
+                if (movie == null) {
+                    continue;
+                }
+
                 Integer year = null;
                 if (movie.release_date != null) {
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy");
@@ -160,7 +182,7 @@ public class TmdbMetadataService {
                         .voteAverage(movie.vote_average)
                         .build());
             }
-            
+
             return results;
             
         } catch (IOException e) {
@@ -181,28 +203,32 @@ public class TmdbMetadataService {
             Response<TvShowResultsPage> response = tmdb.searchService()
                     .tv(query, null, null, null, null)
                     .execute();
-            
-            if (!response.isSuccessful() || response.body() == null) {
+
+            TvShowResultsPage page = response.body();
+            if (!response.isSuccessful() || page == null || page.results == null) {
                 log.warn("TV search failed: {}", response.code());
                 return List.of();
             }
-            
+
             List<ContentMetadata> results = new ArrayList<>();
-            
-            for (BaseTvShow show : response.body().results) {
+
+            for (BaseTvShow show : page.results) {
+                if (show == null) {
+                    continue;
+                }
+
                 // Fetch detailed info for episode count
                 try {
                     Response<TvShow> detailResponse = tmdb.tvService()
                             .tv(show.id, null, null)
                             .execute();
-                    
+
                     Integer year = null;
                     Integer totalEpisodes = null;
                     Integer numberOfSeasons = null;
-                    
-                    if (detailResponse.isSuccessful() && detailResponse.body() != null) {
-                        TvShow detail = detailResponse.body();
 
+                    TvShow detail = detailResponse.body();
+                    if (detailResponse.isSuccessful() && detail != null) {
                         if (detail.first_air_date != null) {
                             SimpleDateFormat sdf = new SimpleDateFormat("yyyy");
                             year = Integer.parseInt(sdf.format(detail.first_air_date));
@@ -211,7 +237,7 @@ public class TmdbMetadataService {
                         numberOfSeasons = detail.number_of_seasons;
                         totalEpisodes = detail.number_of_episodes;
                     }
-                    
+
                     results.add(ContentMetadata.builder()
                             .tmdbId(show.id)
                             .title(show.name)
@@ -222,12 +248,12 @@ public class TmdbMetadataService {
                             .overview(show.overview)
                             .voteAverage(show.vote_average)
                             .build());
-                    
+
                 } catch (Exception e) {
                     log.debug("Failed to fetch details for show {}: {}", show.id, e.getMessage());
                 }
             }
-            
+
             return results;
             
         } catch (IOException e) {
@@ -248,15 +274,16 @@ public class TmdbMetadataService {
             Response<TvShow> response = tmdb.tvService()
                     .tv(tmdbId, null, new AppendToResponse(AppendToResponseItem.IMAGES))
                     .execute();
-            
-            if (!response.isSuccessful() || response.body() == null) {
+
+            TvShow show = response.body();
+            if (!response.isSuccessful() || show == null) {
                 return List.of();
             }
-            
+
             // Filter out specials (season 0)
-            return response.body().seasons.stream()
+            return show.seasons != null ? show.seasons.stream()
                     .filter(season -> season.season_number > 0)
-                    .toList();
+                    .toList() : List.of();
             
         } catch (IOException e) {
             log.error("Error fetching seasons for show {}: {}", tmdbId, e.getMessage());
@@ -276,12 +303,13 @@ public class TmdbMetadataService {
             Response<TvSeason> response = tmdb.tvSeasonsService()
                     .season(tmdbId, season, null, null)
                     .execute();
-            
-            if (!response.isSuccessful() || response.body() == null) {
+
+            TvSeason tvSeason = response.body();
+            if (!response.isSuccessful() || tvSeason == null) {
                 return List.of();
             }
-            
-            return response.body().episodes != null ? response.body().episodes : List.of();
+
+            return tvSeason.episodes != null ? tvSeason.episodes : List.of();
             
         } catch (IOException e) {
             log.error("Error fetching episodes for show {}, season {}: {}", tmdbId, season, e.getMessage());
