@@ -1,0 +1,76 @@
+/* Custom styles for VixSrc Downloader */
+
+:root {
+    --lumo-primary-color: hsl(214, 90%, 52%);
+    --lumo-primary-color-50pct: hsla(214, 90%, 52%, 0.5);
+    --lumo-primary-color-10pct: hsla(214, 90%, 52%, 0.1);
+    --lumo-primary-text-color: hsl(214, 100%, 70%);
+}
+
+/* Card styles */
+vaadin-vertical-layout[theme~="card"] {
+    background-color: var(--lumo-contrast-5pct);
+    border-radius: var(--lumo-border-radius-m);
+    padding: var(--lumo-space-m);
+    box-shadow: var(--lumo-box-shadow-xs);
+}
+
+/* Grid enhancements */
+vaadin-grid {
+    --lumo-font-size-s: 0.875rem;
+}
+
+vaadin-grid-cell-content {
+    padding: var(--lumo-space-xs) var(--lumo-space-s);
+}
+
+/* Progress bar styling */
+vaadin-progress-bar {
+    height: 8px;
+}
+
+/* Badge styling */
+[theme~="badge"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--lumo-space-xs) var(--lumo-space-s);
+    border-radius: var(--lumo-border-radius-s);
+    font-size: var(--lumo-font-size-xs);
+    font-weight: 500;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+[theme~="badge"][theme~="success"] {
+    background-color: var(--lumo-success-color-10pct);
+    color: var(--lumo-success-text-color);
+}
+
+[theme~="badge"][theme~="error"] {
+    background-color: var(--lumo-error-color-10pct);
+    color: var(--lumo-error-text-color);
+}
+
+[theme~="badge"][theme~="contrast"] {
+    background-color: var(--lumo-contrast-10pct);
+    color: var(--lumo-contrast-90pct);
+}
+
+[theme~="badge"][theme~="primary"] {
+    background-color: var(--lumo-primary-color-10pct);
+    color: var(--lumo-primary-text-color);
+}
+
+/* Notification enhancements */
+vaadin-notification-card {
+    border-radius: var(--lumo-border-radius-m);
+}
+
+/* Search result grid */
+.search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--lumo-space-m);
+    padding: var(--lumo-space-m);
+}

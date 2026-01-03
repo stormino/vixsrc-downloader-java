@@ -1,0 +1,81 @@
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+# Vaadin
+node_modules/
+frontend/generated/
+package-lock.json
+pnpm-lock.yaml
+webpack.generated.js
+vite.generated.ts
+tsconfig.json
+types.d.ts
+.vaadin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application
+downloads/
+logs/
+temp/
+.env
+
+# Spring Boot
+spring-boot-devtools.properties
+*.pid
+*.pid.lock
+HELP.md
+
+# Database (H2/PostgreSQL for future use)
+*.db
+*.mv.db
+*.trace.db
+*.lock.db
+*.h2.db
+
+# AI
+CLAUDE.md
+.claude/

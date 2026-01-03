@@ -1,0 +1,59 @@
+vixsrc:
+  download:
+    base-path: ${DOWNLOAD_BASE_PATH:downloads}
+    temp-path: ${DOWNLOAD_TEMP_PATH:downloads/temp}
+    parallel-downloads: ${PARALLEL_DOWNLOADS:3}
+    ytdlp-concurrency: ${YTDLP_CONCURRENCY:5}
+    default-quality: ${DEFAULT_QUALITY:best}
+    default-languages: ${DEFAULT_LANGUAGES:en}
+    
+  tmdb:
+    api-key: ${TMDB_API_KEY:}
+    
+  extractor:
+    base-url: https://vixsrc.to
+    timeout-seconds: 30
+    user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    max-retries: 3
+    retry-delay-ms: 2000
+
+spring:
+  application:
+    name: vixsrc-downloader
+  
+  # Vaadin configuration
+  vaadin:
+    launch-browser: false
+    
+  # Servlet configuration for large file handling
+  servlet:
+    multipart:
+      max-file-size: 10GB
+      max-request-size: 10GB
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+  
+# Logging
+logging:
+  level:
+    com.github.stormino: ${LOG_LEVEL:INFO}
+    okhttp3: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE:logs/vixsrc-downloader.log}
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

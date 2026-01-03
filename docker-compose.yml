@@ -1,0 +1,19 @@
+services:
+  vixsrc-downloader:
+    build: .
+    container_name: vixsrc-downloader
+    ports:
+      - "8080:8080"
+    environment:
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DOWNLOAD_BASE_PATH=/downloads
+      - DOWNLOAD_TEMP_PATH=/downloads/temp
+      - PARALLEL_DOWNLOADS=3
+      - YTDLP_CONCURRENCY=5
+      - DEFAULT_QUALITY=best
+      - DEFAULT_LANGUAGES=en
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./downloads:/downloads
+      - ./logs:/app/logs
+    restart: unless-stopped

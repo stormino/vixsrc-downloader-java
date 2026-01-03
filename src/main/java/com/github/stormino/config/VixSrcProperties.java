@@ -1,0 +1,73 @@
+package com.github.stormino.config;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.validation.annotation.Validated;
+
+import java.util.List;
+
+@Data
+@Validated
+@Configuration
+@ConfigurationProperties(prefix = "vixsrc")
+public class VixSrcProperties {
+    
+    private Download download = new Download();
+    private Tmdb tmdb = new Tmdb();
+    private Extractor extractor = new Extractor();
+    
+    @Data
+    public static class Download {
+        @NotBlank
+        private String basePath = "/downloads";
+        
+        @NotBlank
+        private String tempPath = "/downloads/temp";
+        
+        @Min(1)
+        private int parallelDownloads = 3;
+        
+        @Min(1)
+        private int ytdlpConcurrency = 5;
+        
+        @NotBlank
+        private String defaultQuality = "best";
+        
+        @NotBlank
+        private String defaultLanguages = "en";
+        
+        public List<String> getDefaultLanguageList() {
+            return List.of(defaultLanguages.split(","));
+        }
+    }
+    
+    @Data
+    public static class Tmdb {
+        private String apiKey;
+        
+        public boolean isConfigured() {
+            return apiKey != null && !apiKey.isBlank();
+        }
+    }
+    
+    @Data
+    public static class Extractor {
+        @NotBlank
+        private String baseUrl = "https://vixsrc.to";
+        
+        @Min(1)
+        private int timeoutSeconds = 30;
+        
+        @NotBlank
+        private String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+        
+        @Min(1)
+        private int maxRetries = 3;
+        
+        @Min(100)
+        private long retryDelayMs = 2000;
+    }
+}
