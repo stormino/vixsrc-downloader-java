@@ -74,3 +74,33 @@ vaadin-notification-card {
     gap: var(--lumo-space-m);
     padding: var(--lumo-space-m);
 }
+
+/* TreeGrid enhancements */
+vaadin-grid-tree-toggle {
+    margin-inline-start: calc(var(--lumo-space-s) * -1);
+}
+
+/* Child row styling - lighter background */
+vaadin-grid-tree-grid::part(row)[level="1"] {
+    background-color: var(--lumo-contrast-5pct);
+}
+
+/* Child row text - slightly smaller and muted */
+vaadin-grid-tree-grid::part(cell)[level="1"] {
+    font-size: var(--lumo-font-size-s);
+    color: var(--lumo-secondary-text-color);
+}
+
+/* Expand/collapse icon styling */
+vaadin-grid-tree-toggle::part(toggle) {
+    color: var(--lumo-contrast-60pct);
+}
+
+vaadin-grid-tree-toggle[expanded]::part(toggle) {
+    color: var(--lumo-primary-color);
+}
+
+/* Hover effect for tree rows */
+vaadin-grid-tree-grid::part(row):hover {
+    background-color: var(--lumo-contrast-10pct);
+}

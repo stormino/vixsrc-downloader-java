@@ -13,14 +13,10 @@ RUN mvn clean package -DskipTests -Pproduction
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
 
-# Install yt-dlp and ffmpeg
+# Install ffmpeg
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ffmpeg \
-    python3 \
-    python3-pip \
-    curl && \
-    pip3 install --no-cache-dir yt-dlp && \
+    ffmpeg && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

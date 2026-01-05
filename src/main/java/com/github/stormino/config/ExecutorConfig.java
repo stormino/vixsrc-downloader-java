@@ -25,4 +25,22 @@ public class ExecutorConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "trackExecutor")
+    public Executor trackExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+
+        // Calculate based on parallelDownloads × average tracks per download
+        // Example: 3 downloads × 4 tracks = 12 concurrent track downloads
+        int maxTracks = properties.getDownload().getParallelDownloads() * 4;
+
+        executor.setCorePoolSize(maxTracks);
+        executor.setMaxPoolSize(maxTracks);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("track-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }

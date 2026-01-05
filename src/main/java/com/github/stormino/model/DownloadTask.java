@@ -6,6 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Data
 @Builder
@@ -28,6 +29,9 @@ public class DownloadTask {
     
     private String outputPath;
     private String playlistUrl;
+
+    @Builder.Default
+    private List<DownloadSubTask> subTasks = new CopyOnWriteArrayList<>();
 
     @Builder.Default
     private volatile DownloadStatus status = DownloadStatus.QUEUED;
@@ -78,5 +82,26 @@ public class DownloadTask {
     
     public boolean isActive() {
         return status == DownloadStatus.DOWNLOADING || status == DownloadStatus.EXTRACTING;
+    }
+
+    public Double getAggregatedProgress() {
+        if (subTasks.isEmpty()) {
+            return progress;  // Fallback to parent progress
+        }
+
+        double totalProgress = subTasks.stream()
+                .mapToDouble(st -> st.getProgress() != null ? st.getProgress() : 0.0)
+                .sum();
+
+        return totalProgress / subTasks.size();
+    }
+
+    public boolean allSubTasksCompleted() {
+        return !subTasks.isEmpty() &&
+                subTasks.stream().allMatch(st -> st.getStatus() == DownloadStatus.COMPLETED);
+    }
+
+    public boolean anySubTaskFailed() {
+        return subTasks.stream().anyMatch(st -> st.getStatus() == DownloadStatus.FAILED);
     }
 }

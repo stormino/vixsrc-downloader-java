@@ -12,8 +12,8 @@ import com.uwetrottmann.tmdb2.entities.TvShow;
 import com.uwetrottmann.tmdb2.entities.TvShowResultsPage;
 import com.uwetrottmann.tmdb2.enumerations.AppendToResponseItem;
 import com.github.stormino.model.ContentMetadata;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import retrofit2.Response;
 
@@ -25,10 +25,13 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TmdbMetadataService {
-    
+
     private final Tmdb tmdb;
+
+    public TmdbMetadataService(@Nullable Tmdb tmdb) {
+        this.tmdb = tmdb;
+    }
     
     public boolean isAvailable() {
         return tmdb != null;

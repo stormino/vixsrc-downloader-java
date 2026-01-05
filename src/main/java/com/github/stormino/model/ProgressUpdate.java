@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 public class ProgressUpdate {
     
     private String taskId;
+    private String subTaskId;  // Optional - null for parent task updates
     private DownloadStatus status;
     private Double progress;
     private String bitrate;
@@ -38,6 +39,19 @@ public class ProgressUpdate {
                 .taskId(taskId)
                 .status(DownloadStatus.FAILED)
                 .errorMessage(errorMessage)
+                .build();
+    }
+
+    public static ProgressUpdate forSubTask(DownloadSubTask subTask, String parentTaskId) {
+        return ProgressUpdate.builder()
+                .taskId(parentTaskId)
+                .subTaskId(subTask.getId())
+                .status(subTask.getStatus())
+                .progress(subTask.getProgress())
+                .bitrate(subTask.getDownloadSpeed())
+                .downloadedBytes(subTask.getDownloadedBytes())
+                .totalBytes(subTask.getTotalBytes())
+                .errorMessage(subTask.getErrorMessage())
                 .build();
     }
 }

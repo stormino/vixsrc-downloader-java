@@ -46,7 +46,7 @@ Layout
 - **Download Settings** - All config values (read-only)
 - **Extractor Settings** - Base URL, timeout, retries
 - **System Info** - Java version, OS, CPU count
-- **Tool Check** - Verify yt-dlp/ffmpeg availability
+- **Tool Check** - Verify ffmpeg availability
 
 ### Components ✅
 - **SearchResultCard** - Responsive card with:
@@ -144,7 +144,7 @@ Custom theme: `frontend/themes/vixsrc/`
 5. **Settings** → Navigate to `/settings`
    - View configuration
    - Check TMDB API key status
-   - Verify yt-dlp/ffmpeg availability
+   - Verify ffmpeg availability
 
 ## Customization
 

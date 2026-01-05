@@ -21,7 +21,7 @@ A production-ready video downloader for vixsrc.to with web UI, built with Spring
 
 - Java 17+
 - Maven 3.6+
-- yt-dlp or ffmpeg (for video downloading)
+- ffmpeg (for video downloading)
 - Docker (optional, for containerized deployment)
 
 ## Quick Start
@@ -50,11 +50,9 @@ curl http://localhost:8080/api/downloads
 ### Manual Setup
 
 ```bash
-# 1. Install yt-dlp
-pip install yt-dlp
-
-# Or install ffmpeg
+# 1. Install ffmpeg
 sudo apt-get install ffmpeg  # Debian/Ubuntu
+brew install ffmpeg          # macOS
 
 # 2. Set TMDB API key
 export TMDB_API_KEY="your_api_key_here"
@@ -74,7 +72,7 @@ java -jar target/vixsrc-downloader-1.0.0.jar
 | `DOWNLOAD_BASE_PATH` | Download directory | `/downloads` |
 | `DOWNLOAD_TEMP_PATH` | Temporary files directory | `/downloads/temp` |
 | `PARALLEL_DOWNLOADS` | Max concurrent downloads | `3` |
-| `YTDLP_CONCURRENCY` | yt-dlp fragment concurrency | `5` |
+| `SEGMENT_CONCURRENCY` | HLS segment download concurrency | `5` |
 | `DEFAULT_QUALITY` | Default quality (best/720/1080) | `best` |
 | `DEFAULT_LANGUAGES` | Default languages (comma-separated) | `en` |
 | `SERVER_PORT` | Web server port | `8080` |
@@ -94,7 +92,7 @@ See `src/main/resources/application.yml` for all configuration options.
 │   └── ProgressController - Real-time progress updates (SSE)
 ├── Services
 │   ├── VixSrcExtractorService - Cloudflare bypass + URL extraction
-│   ├── DownloadExecutorService - yt-dlp/ffmpeg wrapper
+│   ├── DownloadExecutorService - ffmpeg wrapper
 │   ├── TmdbMetadataService - TMDB API integration
 │   ├── DownloadQueueService - Download orchestration
 │   └── ProgressBroadcastService - SSE broadcasting
@@ -232,7 +230,7 @@ mvn verify
 3. **Extract URL** - System extracts HLS playlist from vixsrc.to
    - Multiple extraction strategies (window.masterPlaylist, regex, API endpoints)
    - Cloudflare bypass via custom OkHttp interceptor
-4. **Download** - yt-dlp or ffmpeg downloads video
+4. **Download** - ffmpeg downloads video
    - Real-time progress parsed from stdout
    - Progress broadcast via SSE to UI
 5. **Save** - File saved with metadata-based filename
@@ -265,14 +263,9 @@ For downloads with multiple languages:
 
 ## Troubleshooting
 
-### "Neither yt-dlp nor ffmpeg found"
+### "ffmpeg not found"
 
-Install yt-dlp:
-```bash
-pip install yt-dlp
-```
-
-Or ffmpeg:
+Install ffmpeg:
 ```bash
 # Debian/Ubuntu
 sudo apt-get install ffmpeg
@@ -289,7 +282,7 @@ brew install ffmpeg
 
 ### Downloads are slow
 
-- Reduce `YTDLP_CONCURRENCY` (fragment downloads)
+- Reduce `SEGMENT_CONCURRENCY` (HLS segment downloads)
 - Try lower quality: `quality=720`
 - Check network connection
 
@@ -336,7 +329,7 @@ See `k8s/` directory for deployment manifests (coming soon).
 ### Phase 1 - Backend Core ✅
 - [x] HTTP client with Cloudflare bypass
 - [x] Playlist URL extraction
-- [x] Download execution (yt-dlp/ffmpeg)
+- [x] Download execution (ffmpeg)
 - [x] TMDB integration
 - [x] REST API
 - [x] SSE progress broadcasting

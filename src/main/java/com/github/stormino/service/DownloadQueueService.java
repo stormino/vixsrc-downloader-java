@@ -26,6 +26,7 @@ public class DownloadQueueService {
     private final VixSrcExtractorService extractorService;
     private final TmdbMetadataService metadataService;
     private final DownloadExecutorService executorService;
+    private final TrackDownloadOrchestrator trackOrchestrator;
     private final ProgressBroadcastService progressBroadcast;
     private final VixSrcProperties properties;
     
@@ -167,13 +168,9 @@ public class DownloadQueueService {
             }
             
             task.setPlaylistUrl(playlistInfo.get().getUrl());
-            
-            // Handle multi-language if needed
-            if (task.getLanguages().size() > 1) {
-                downloadMultiLanguage(task);
-            } else {
-                downloadSingleLanguage(task);
-            }
+
+            // Always use track orchestrator for concurrent downloads
+            downloadWithTracks(task);
             
         } catch (Exception e) {
             log.error("Error processing task {}: {}", task.getId(), e.getMessage(), e);
@@ -184,56 +181,21 @@ public class DownloadQueueService {
         }
     }
     
-    private void downloadSingleLanguage(DownloadTask task) {
+    private void downloadWithTracks(DownloadTask task) {
         updateTaskStatus(task, DownloadStatus.DOWNLOADING, 0.0, "Starting download");
-        
-        task.setStartedAt(LocalDateTime.now());
-        
-        boolean success = executorService.downloadVideo(task, update -> {
-            // Update task with progress
-            if (update.getProgress() != null) {
-                task.setProgress(update.getProgress());
-            }
-            if (update.getStatus() != null) {
-                task.setStatus(update.getStatus());
-            }
-            if (update.getBitrate() != null) {
-                task.setBitrate(update.getBitrate());
-            }
-            if (update.getDownloadedBytes() != null) {
-                task.setDownloadedBytes(update.getDownloadedBytes());
-            }
-            if (update.getTotalBytes() != null) {
-                task.setTotalBytes(update.getTotalBytes());
-            }
-            if (update.getErrorMessage() != null) {
-                task.setErrorMessage(update.getErrorMessage());
-            }
 
-            // Broadcast to UI
-            progressBroadcast.broadcastProgress(update);
-        });
-        
+        task.setStartedAt(LocalDateTime.now());
+
+        // Use track orchestrator for concurrent video/audio downloads
+        boolean success = trackOrchestrator.downloadWithTracks(task);
+
         if (success) {
             task.setCompletedAt(LocalDateTime.now());
             updateTaskStatus(task, DownloadStatus.COMPLETED, 100.0, "Download completed");
         } else {
-            updateTaskStatus(task, DownloadStatus.FAILED, task.getProgress(), 
+            updateTaskStatus(task, DownloadStatus.FAILED, task.getProgress(),
                     task.getErrorMessage() != null ? task.getErrorMessage() : "Download failed");
         }
-    }
-    
-    private void downloadMultiLanguage(DownloadTask task) {
-        // For multi-language, we need to:
-        // 1. Download primary language (video + audio)
-        // 2. Download additional audio tracks
-        // 3. Merge with ffmpeg
-        
-        // This is a simplified version - full implementation would handle temp files,
-        // separate audio extraction, and ffmpeg merging
-        
-        log.warn("Multi-language download not fully implemented yet. Using primary language only.");
-        downloadSingleLanguage(task);
     }
     
     private void updateTaskStatus(DownloadTask task, DownloadStatus status, Double progress, String message) {

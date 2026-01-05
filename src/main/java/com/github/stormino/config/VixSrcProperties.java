@@ -23,22 +23,22 @@ public class VixSrcProperties {
     public static class Download {
         @NotBlank
         private String basePath = "/downloads";
-        
+
         @NotBlank
         private String tempPath = "/downloads/temp";
-        
+
         @Min(1)
         private int parallelDownloads = 3;
-        
+
         @Min(1)
-        private int ytdlpConcurrency = 5;
-        
+        private int segmentConcurrency = 5;
+
         @NotBlank
         private String defaultQuality = "best";
-        
+
         @NotBlank
         private String defaultLanguages = "en";
-        
+
         public List<String> getDefaultLanguageList() {
             return List.of(defaultLanguages.split(","));
         }

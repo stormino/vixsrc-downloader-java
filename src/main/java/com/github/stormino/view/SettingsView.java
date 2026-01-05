@@ -26,7 +26,7 @@ public class SettingsView extends VerticalLayout {
     private final TextField downloadPathField;
     private final TextField tempPathField;
     private final IntegerField parallelDownloadsField;
-    private final IntegerField ytdlpConcurrencyField;
+    private final IntegerField segmentConcurrencyField;
     private final TextField defaultQualityField;
     private final TextField defaultLanguagesField;
     
@@ -90,13 +90,13 @@ public class SettingsView extends VerticalLayout {
         parallelDownloadsField.setMax(10);
         parallelDownloadsField.setStepButtonsVisible(true);
         parallelDownloadsField.setReadOnly(true);
-        
-        ytdlpConcurrencyField = new IntegerField("yt-dlp Concurrency");
-        ytdlpConcurrencyField.setValue(properties.getDownload().getYtdlpConcurrency());
-        ytdlpConcurrencyField.setMin(1);
-        ytdlpConcurrencyField.setMax(20);
-        ytdlpConcurrencyField.setStepButtonsVisible(true);
-        ytdlpConcurrencyField.setReadOnly(true);
+
+        segmentConcurrencyField = new IntegerField("Segment Concurrency");
+        segmentConcurrencyField.setValue(properties.getDownload().getSegmentConcurrency());
+        segmentConcurrencyField.setMin(1);
+        segmentConcurrencyField.setMax(20);
+        segmentConcurrencyField.setStepButtonsVisible(true);
+        segmentConcurrencyField.setReadOnly(true);
         
         defaultQualityField = new TextField("Default Quality");
         defaultQualityField.setValue(properties.getDownload().getDefaultQuality());
@@ -121,7 +121,7 @@ public class SettingsView extends VerticalLayout {
                 downloadPathField,
                 tempPathField,
                 parallelDownloadsField,
-                ytdlpConcurrencyField,
+                segmentConcurrencyField,
                 defaultQualityField,
                 defaultLanguagesField
         );
@@ -161,7 +161,7 @@ public class SettingsView extends VerticalLayout {
                 createInfoRow("Available Processors", String.valueOf(Runtime.getRuntime().availableProcessors()))
         );
         
-        // Check for yt-dlp and ffmpeg
+        // Check for ffmpeg
         Button checkToolsBtn = new Button("Check Tools", e -> checkTools());
         checkToolsBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         
@@ -190,15 +190,12 @@ public class SettingsView extends VerticalLayout {
     
     private void checkTools() {
         StringBuilder message = new StringBuilder("Tool Check Results:\n\n");
-        
-        boolean ytdlpAvailable = checkCommand("yt-dlp");
-        message.append(ytdlpAvailable ? "✓ yt-dlp: Available\n" : "✗ yt-dlp: Not found\n");
-        
+
         boolean ffmpegAvailable = checkCommand("ffmpeg");
         message.append(ffmpegAvailable ? "✓ ffmpeg: Available\n" : "✗ ffmpeg: Not found\n");
-        
-        if (!ytdlpAvailable && !ffmpegAvailable) {
-            message.append("\n⚠️ No download tools found! Install yt-dlp or ffmpeg.");
+
+        if (!ffmpegAvailable) {
+            message.append("\n⚠️ ffmpeg not found! Please install ffmpeg.");
             Notification.show(message.toString(), 5000, Notification.Position.MIDDLE)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
         } else {

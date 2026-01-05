@@ -9,7 +9,7 @@ services:
       - DOWNLOAD_BASE_PATH=/downloads
       - DOWNLOAD_TEMP_PATH=/downloads/temp
       - PARALLEL_DOWNLOADS=3
-      - YTDLP_CONCURRENCY=5
+      - SEGMENT_CONCURRENCY=5
       - DEFAULT_QUALITY=best
       - DEFAULT_LANGUAGES=en
       - LOG_LEVEL=INFO

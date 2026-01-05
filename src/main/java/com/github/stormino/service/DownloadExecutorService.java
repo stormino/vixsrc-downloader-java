@@ -31,7 +31,6 @@ public class DownloadExecutorService {
     private final java.util.concurrent.ConcurrentHashMap<String, Process> runningProcesses = new java.util.concurrent.ConcurrentHashMap<>();
     
     // Progress parsing patterns
-    private static final Pattern YTDLP_PROGRESS_PATTERN = Pattern.compile("PROGRESS:(\\d+\\.?\\d*)%?");
     private static final Pattern FFMPEG_TIME_PATTERN = Pattern.compile("time=(\\d{2}):(\\d{2}):(\\d{2}\\.\\d+)");
     private static final Pattern FFMPEG_DURATION_PATTERN = Pattern.compile("Duration:\\s*(\\d{2}):(\\d{2}):(\\d{2}\\.\\d+)");
     private static final Pattern FFMPEG_BITRATE_PATTERN = Pattern.compile("bitrate=\\s*(\\d+\\.?\\d*)\\s*([kmgt]?bits/s)", Pattern.CASE_INSENSITIVE);
@@ -40,183 +39,54 @@ public class DownloadExecutorService {
      * Cancel a running download
      */
     public void cancelDownload(String taskId) {
-        Process process = runningProcesses.get(taskId);
-        if (process != null && process.isAlive()) {
-            log.info("Killing process and descendants for task: {}", taskId);
-            // Kill all descendant processes first
-            process.descendants().forEach(ProcessHandle::destroyForcibly);
-            // Then kill the main process
-            process.destroyForcibly();
-        }
+        // Find all processes for this task (parent + sub-tasks)
+        runningProcesses.entrySet().stream()
+                .filter(e -> e.getKey().startsWith(taskId))
+                .forEach(e -> {
+                    Process process = e.getValue();
+                    if (process.isAlive()) {
+                        log.info("Killing process and descendants for: {}", e.getKey());
+                        process.descendants().forEach(ProcessHandle::destroyForcibly);
+                        process.destroyForcibly();
+                    }
+                });
     }
 
     /**
-     * Download video using yt-dlp or ffmpeg
+     * Execute track-specific download (for concurrent track downloads)
      */
-    public boolean downloadVideo(DownloadTask task, Consumer<ProgressUpdate> progressCallback) {
-        try {
-            // Check if yt-dlp is available (preferred)
-            if (isCommandAvailable("yt-dlp")) {
-                return downloadWithYtDlp(task, progressCallback);
-            }
-
-            // Fallback to ffmpeg
-            if (isCommandAvailable("ffmpeg")) {
-                return downloadWithFfmpeg(task, progressCallback);
-            }
-
-            log.error("Neither yt-dlp nor ffmpeg found");
-            progressCallback.accept(ProgressUpdate.error(task.getId(),
-                    "Neither yt-dlp nor ffmpeg found. Please install one."));
-            return false;
-
-        } catch (Exception e) {
-            log.error("Download failed for task {}: {}", task.getId(), e.getMessage(), e);
-            progressCallback.accept(ProgressUpdate.error(task.getId(),
-                    "Download failed: " + e.getMessage()));
-            return false;
-        }
-    }
-    
-    /**
-     * Download using yt-dlp (preferred method)
-     */
-    private boolean downloadWithYtDlp(DownloadTask task, Consumer<ProgressUpdate> progressCallback) {
-        log.info("Downloading with yt-dlp: {}", task.getDisplayName());
-        
-        List<String> command = buildYtDlpCommand(task);
-        
-        return executeCommand(command, task, progressCallback, new YtDlpProgressParser());
-    }
-    
-    /**
-     * Download using ffmpeg (fallback)
-     */
-    private boolean downloadWithFfmpeg(DownloadTask task, Consumer<ProgressUpdate> progressCallback) {
-        log.info("Downloading with ffmpeg: {}", task.getDisplayName());
-        
-        List<String> command = buildFfmpegCommand(task);
-        
-        return executeCommand(command, task, progressCallback, new FfmpegProgressParser());
-    }
-    
-    private List<String> buildYtDlpCommand(DownloadTask task) {
-        List<String> command = new ArrayList<>();
-        command.add("yt-dlp");
-        command.add("-N");
-        command.add(String.valueOf(properties.getDownload().getYtdlpConcurrency()));
-        
-        // Format selection based on quality
-        String quality = task.getQuality() != null ? task.getQuality() : properties.getDownload().getDefaultQuality();
-        String formatSelector;
-        
-        if (quality.matches("\\d+")) {
-            // Specific height (e.g., "720", "1080")
-            formatSelector = String.format(
-                    "bestvideo[height<=%s]+bestaudio/best[height<=%s]",
-                    quality, quality
-            );
-        } else {
-            // "best" or "worst"
-            formatSelector = "bestvideo+bestaudio/best";
-        }
-        
-        command.add("-f");
-        command.add(formatSelector);
-        
-        command.add("--merge-output-format");
-        command.add("mp4");
-        
-        command.add("--referer");
-        command.add(properties.getExtractor().getBaseUrl());
-        
-        command.add("--add-header");
-        command.add("Accept: */*");
-        
-        command.add("-o");
-        command.add(task.getOutputPath());
-        
-        command.add("--newline");
-        command.add("--no-warnings");
-
-        command.add("--progress-template");
-        command.add("download:PROGRESS:%(progress._percent_str)s");
-
-        command.add(task.getPlaylistUrl());
-        
-        return command;
-    }
-    
-    private List<String> buildFfmpegCommand(DownloadTask task) {
-        List<String> command = new ArrayList<>();
-        command.add("ffmpeg");
-        command.add("-i");
-        command.add(task.getPlaylistUrl());
-        command.add("-c");
-        command.add("copy");
-        command.add("-bsf:a");
-        command.add("aac_adtstoasc");
-        command.add("-y"); // Overwrite
-        command.add(task.getOutputPath());
-        
-        return command;
-    }
-    
-    private boolean executeCommand(List<String> command, DownloadTask task,
-                                   Consumer<ProgressUpdate> progressCallback,
-                                   ProgressParser parser) {
+    public boolean executeTrackDownload(List<String> command, String taskId, String subTaskId,
+                                       Consumer<ProgressUpdate> progressCallback) {
+        String processKey = taskId + ":" + subTaskId;
         Process process = null;
         try {
-            log.info("Executing command: {}", String.join(" ", command));
+            log.info("Executing track download: {}", String.join(" ", command));
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.redirectErrorStream(true);
 
             process = processBuilder.start();
 
-            // Track the process
-            runningProcesses.put(task.getId(), process);
+            // Track the process with composite key
+            runningProcesses.put(processKey, process);
 
-            // Read output and parse progress
+            // Read output and parse progress (use ffmpeg parser for track downloads)
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
 
                 String line;
-                while ((line = reader.readLine()) != null && process.isAlive()) {
-                    // Check if task was cancelled
-                    if (task.getStatus() == DownloadStatus.CANCELLED) {
-                        log.info("Task {} cancelled, stopping process", task.getId());
-                        process.descendants().forEach(ProcessHandle::destroyForcibly);
-                        process.destroyForcibly();
-                        progressCallback.accept(ProgressUpdate.builder()
-                                .taskId(task.getId())
-                                .status(DownloadStatus.CANCELLED)
-                                .progress(task.getProgress())
-                                .message("Download cancelled")
-                                .build());
-                        return false;
-                    }
+                FfmpegProgressParser parser = new FfmpegProgressParser();
 
-                    ProgressUpdate update = parser.parseLine(line, task.getId());
+                while ((line = reader.readLine()) != null && process.isAlive()) {
+                    ProgressUpdate update = parser.parseLine(line, taskId);
                     if (update != null) {
+                        // Add subTaskId to update
+                        update.setSubTaskId(subTaskId);
                         progressCallback.accept(update);
                     } else {
-                        log.debug("Download output: {}", line);
+                        log.debug("Track download output: {}", line);
                     }
                 }
-            }
-
-            // Check if cancelled after loop exits
-            if (task.getStatus() == DownloadStatus.CANCELLED || !process.isAlive()) {
-                if (task.getStatus() == DownloadStatus.CANCELLED) {
-                    progressCallback.accept(ProgressUpdate.builder()
-                            .taskId(task.getId())
-                            .status(DownloadStatus.CANCELLED)
-                            .progress(task.getProgress())
-                            .message("Download cancelled")
-                            .build());
-                }
-                return false;
             }
 
             boolean completed = process.waitFor(2, TimeUnit.HOURS);
@@ -230,148 +100,125 @@ public class DownloadExecutorService {
             int exitCode = process.exitValue();
 
             if (exitCode == 0) {
-                // Verify file was created
-                if (Files.exists(Paths.get(task.getOutputPath()))) {
-                    progressCallback.accept(ProgressUpdate.builder()
-                            .taskId(task.getId())
-                            .status(DownloadStatus.COMPLETED)
-                            .progress(100.0)
-                            .message("Download completed")
-                            .build());
-                    return true;
-                }
+                progressCallback.accept(ProgressUpdate.builder()
+                        .taskId(taskId)
+                        .subTaskId(subTaskId)
+                        .status(DownloadStatus.COMPLETED)
+                        .progress(100.0)
+                        .build());
+                return true;
             }
 
-            log.error("Download process exited with code: {} for task: {}", exitCode, task.getDisplayName());
-            progressCallback.accept(ProgressUpdate.error(task.getId(),
-                    "Download failed with exit code " + exitCode + ". Check logs for details."));
+            log.error("Track download process exited with code: {} for subTask: {}", exitCode, subTaskId);
+            log.error("Command was: {}", String.join(" ", command));
+            progressCallback.accept(ProgressUpdate.builder()
+                    .taskId(taskId)
+                    .subTaskId(subTaskId)
+                    .status(DownloadStatus.FAILED)
+                    .errorMessage("Download failed with exit code " + exitCode)
+                    .build());
             return false;
 
         } catch (IOException | InterruptedException e) {
-            log.error("Error executing download command: {}", e.getMessage());
+            log.error("Error executing track download command: {}", e.getMessage());
             Thread.currentThread().interrupt();
             return false;
         } finally {
-            // Remove from tracking
             if (process != null) {
-                runningProcesses.remove(task.getId());
+                runningProcesses.remove(processKey);
             }
         }
     }
-    
-    private boolean isCommandAvailable(String command) {
+
+    /**
+     * Execute ffmpeg merge command
+     */
+    public boolean executeMergeCommand(List<String> command, String taskId,
+                                      Consumer<ProgressUpdate> progressCallback) {
+        String processKey = taskId + ":merge";
+        Process process = null;
         try {
-            Process process = new ProcessBuilder(command, "--version")
-                    .redirectErrorStream(true)
-                    .start();
-            
-            boolean completed = process.waitFor(5, TimeUnit.SECONDS);
-            
+            log.info("Executing merge command: {}", String.join(" ", command));
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            processBuilder.redirectErrorStream(true);
+
+            process = processBuilder.start();
+
+            // Track the process
+            runningProcesses.put(processKey, process);
+
+            // Read output and parse progress
+            StringBuilder errorOutput = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+
+                String line;
+                FfmpegProgressParser parser = new FfmpegProgressParser();
+
+                while ((line = reader.readLine()) != null && process.isAlive()) {
+                    // Capture all output for error reporting
+                    errorOutput.append(line).append("\n");
+
+                    ProgressUpdate update = parser.parseLine(line, taskId);
+                    if (update != null) {
+                        // Override status to MERGING
+                        update.setStatus(DownloadStatus.MERGING);
+                        progressCallback.accept(update);
+                    } else {
+                        log.debug("Merge output: {}", line);
+                    }
+                }
+            }
+
+            boolean completed = process.waitFor(2, TimeUnit.HOURS);
+
             if (!completed) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
                 return false;
             }
-            
-            return process.exitValue() == 0;
-            
-        } catch (IOException | InterruptedException e) {
+
+            int exitCode = process.exitValue();
+
+            if (exitCode == 0) {
+                progressCallback.accept(ProgressUpdate.builder()
+                        .taskId(taskId)
+                        .status(DownloadStatus.COMPLETED)
+                        .progress(100.0)
+                        .message("Merge completed")
+                        .build());
+                return true;
+            }
+
+            // Log full error output on failure
+            log.error("Merge process exited with code: {}", exitCode);
+            log.error("Full ffmpeg output:\n{}", errorOutput.toString());
+            progressCallback.accept(ProgressUpdate.builder()
+                    .taskId(taskId)
+                    .status(DownloadStatus.FAILED)
+                    .errorMessage("Merge failed with exit code " + exitCode)
+                    .build());
             return false;
+
+        } catch (IOException | InterruptedException e) {
+            log.error("Error executing merge command: {}", e.getMessage());
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            if (process != null) {
+                runningProcesses.remove(processKey);
+            }
         }
     }
-    
+
     /**
      * Interface for parsing progress from command output
      */
     private interface ProgressParser {
         ProgressUpdate parseLine(String line, String taskId);
     }
-    
-    /**
-     * Parse yt-dlp progress output
-     * Note: yt-dlp uses ffmpeg internally for HLS, so we need to parse ffmpeg-style output
-     */
-    private static class YtDlpProgressParser implements ProgressParser {
 
-        private Double totalDuration = null;
-
-        @Override
-        public ProgressUpdate parseLine(String line, String taskId) {
-            if (line == null || line.isBlank()) {
-                return null;
-            }
-
-            // Try progress template format first (for non-HLS downloads)
-            Matcher progressMatcher = YTDLP_PROGRESS_PATTERN.matcher(line);
-            if (progressMatcher.find()) {
-                try {
-                    double progress = Double.parseDouble(progressMatcher.group(1));
-
-                    return ProgressUpdate.builder()
-                            .taskId(taskId)
-                            .status(DownloadStatus.DOWNLOADING)
-                            .progress(progress)
-                            .build();
-
-                } catch (NumberFormatException e) {
-                    log.debug("Failed to parse progress from line: {}", line, e);
-                    return null;
-                }
-            }
-
-            // Parse ffmpeg-style output (for HLS downloads)
-            // Extract total duration
-            if (totalDuration == null && line.contains("Duration:")) {
-                Matcher durationMatcher = FFMPEG_DURATION_PATTERN.matcher(line);
-                if (durationMatcher.find()) {
-                    totalDuration = parseTime(
-                            durationMatcher.group(1),
-                            durationMatcher.group(2),
-                            durationMatcher.group(3)
-                    );
-                    log.debug("Parsed duration: {} seconds", totalDuration);
-                }
-            }
-
-            // Parse progress from ffmpeg output
-            if (line.contains("frame=") && line.contains("time=")) {
-                Matcher timeMatcher = FFMPEG_TIME_PATTERN.matcher(line);
-                Matcher bitrateMatcher = FFMPEG_BITRATE_PATTERN.matcher(line);
-
-                if (timeMatcher.find() && totalDuration != null) {
-                    double currentTime = parseTime(
-                            timeMatcher.group(1),
-                            timeMatcher.group(2),
-                            timeMatcher.group(3)
-                    );
-
-                    double progress = (currentTime / totalDuration) * 100.0;
-
-                    if (progress <= 100.0) {
-                        String bitrate = null;
-                        if (bitrateMatcher.find()) {
-                            bitrate = bitrateMatcher.group(1) + bitrateMatcher.group(2);
-                        }
-
-                        return ProgressUpdate.builder()
-                                .taskId(taskId)
-                                .status(DownloadStatus.DOWNLOADING)
-                                .progress(progress)
-                                .bitrate(bitrate)
-                                .build();
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private double parseTime(String hours, String minutes, String seconds) {
-            return Integer.parseInt(hours) * 3600 +
-                   Integer.parseInt(minutes) * 60 +
-                   Double.parseDouble(seconds);
-        }
-    }
-    
     /**
      * Parse ffmpeg progress output
      */

@@ -5,7 +5,6 @@ import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
@@ -15,19 +14,24 @@ import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.component.treegrid.TreeGrid;
+import com.vaadin.flow.data.provider.hierarchy.TreeData;
+import com.vaadin.flow.data.provider.hierarchy.TreeDataProvider;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import com.github.stormino.model.DownloadStatus;
+import com.github.stormino.model.DownloadSubTask;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.model.ProgressUpdate;
 import com.github.stormino.service.DownloadQueueService;
 import com.github.stormino.service.ProgressBroadcastService;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -37,7 +41,7 @@ public class DownloadQueueView extends VerticalLayout {
 
     private final DownloadQueueService downloadQueueService;
     private final ProgressBroadcastService progressBroadcastService;
-    private final Grid<DownloadTask> grid;
+    private final TreeGrid<DownloadItem> treeGrid;
     private Consumer<ProgressUpdate> progressListener;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -62,45 +66,37 @@ public class DownloadQueueView extends VerticalLayout {
         header.setWidthFull();
         header.setDefaultVerticalComponentAlignment(Alignment.CENTER);
         header.expand(title);
-        
-        // Grid
-        grid = new Grid<>(DownloadTask.class, false);
-        grid.addColumn(DownloadTask::getDisplayName)
+
+        // TreeGrid
+        treeGrid = new TreeGrid<>();
+
+        treeGrid.addHierarchyColumn(this::getItemDisplayName)
                 .setHeader("Title")
-                .setFlexGrow(2);
-        
-        grid.addColumn(new ComponentRenderer<>(this::createStatusBadge))
+                .setFlexGrow(3);
+
+        treeGrid.addComponentColumn(this::createStatusBadge)
                 .setHeader("Status")
                 .setWidth("120px");
-        
-        grid.addColumn(new ComponentRenderer<>(this::createProgressBar))
+
+        treeGrid.addComponentColumn(this::createProgressBar)
                 .setHeader("Progress")
                 .setWidth("200px");
-        
-        grid.addColumn(task -> {
-            if (task.getBitrate() != null) {
-                return task.getBitrate();
-            }
-            return "-";
-        }).setHeader("Speed")
-          .setWidth("100px");
-        
-        grid.addColumn(task -> {
-            if (task.getCreatedAt() != null) {
-                return task.getCreatedAt().format(TIME_FORMATTER);
-            }
-            return "-";
-        }).setHeader("Created")
-          .setWidth("100px");
-        
-        grid.addColumn(new ComponentRenderer<>(this::createActionButtons))
+
+        treeGrid.addColumn(this::getItemSpeed)
+                .setHeader("Speed")
+                .setWidth("100px");
+
+        treeGrid.addColumn(this::getItemCreatedTime)
+                .setHeader("Created")
+                .setWidth("100px");
+
+        treeGrid.addComponentColumn(this::createActionButtons)
                 .setHeader("Actions")
                 .setWidth("100px");
-        
-        grid.setAllRowsVisible(false);
-        grid.setHeight("600px");
-        
-        add(header, grid);
+
+        treeGrid.setHeight("600px");
+
+        add(header, treeGrid);
         
         refreshGrid();
     }
@@ -134,69 +130,159 @@ public class DownloadQueueView extends VerticalLayout {
         log.debug("Received update for task {}: {}%", update.getTaskId(), update.getProgress());
 
         downloadQueueService.getTask(update.getTaskId()).ifPresent(task -> {
-            // Update task with progress
-            if (update.getProgress() != null) {
-                task.setProgress(update.getProgress());
-            }
-            if (update.getStatus() != null) {
-                task.setStatus(update.getStatus());
-            }
-            if (update.getBitrate() != null) {
-                task.setBitrate(update.getBitrate());
-            }
-            if (update.getDownloadedBytes() != null) {
-                task.setDownloadedBytes(update.getDownloadedBytes());
-            }
-            if (update.getTotalBytes() != null) {
-                task.setTotalBytes(update.getTotalBytes());
-            }
-            if (update.getErrorMessage() != null) {
-                task.setErrorMessage(update.getErrorMessage());
+            if (update.getSubTaskId() != null) {
+                // Sub-task update
+                task.getSubTasks().stream()
+                        .filter(st -> st.getId().equals(update.getSubTaskId()))
+                        .findFirst()
+                        .ifPresent(subTask -> {
+                            if (update.getProgress() != null) {
+                                subTask.setProgress(update.getProgress());
+                            }
+                            if (update.getStatus() != null) {
+                                subTask.setStatus(update.getStatus());
+                            }
+                            if (update.getBitrate() != null) {
+                                subTask.setDownloadSpeed(update.getBitrate());
+                            }
+                            if (update.getDownloadedBytes() != null) {
+                                subTask.setDownloadedBytes(update.getDownloadedBytes());
+                            }
+                            if (update.getTotalBytes() != null) {
+                                subTask.setTotalBytes(update.getTotalBytes());
+                            }
+                            if (update.getErrorMessage() != null) {
+                                subTask.setErrorMessage(update.getErrorMessage());
+                            }
+                        });
+            } else {
+                // Parent task update
+                if (update.getProgress() != null) {
+                    task.setProgress(update.getProgress());
+                }
+                if (update.getStatus() != null) {
+                    task.setStatus(update.getStatus());
+                }
+                if (update.getBitrate() != null) {
+                    task.setBitrate(update.getBitrate());
+                }
+                if (update.getDownloadedBytes() != null) {
+                    task.setDownloadedBytes(update.getDownloadedBytes());
+                }
+                if (update.getTotalBytes() != null) {
+                    task.setTotalBytes(update.getTotalBytes());
+                }
+                if (update.getErrorMessage() != null) {
+                    task.setErrorMessage(update.getErrorMessage());
+                }
             }
 
-            // Refresh entire grid to ensure component renderers update
-            grid.getDataProvider().refreshAll();
+            // Refresh entire tree grid
+            treeGrid.getDataProvider().refreshAll();
         });
     }
-    
+
     private void refreshGrid() {
-        grid.setItems(downloadQueueService.getAllTasks());
+        TreeData<DownloadItem> treeData = new TreeData<>();
+
+        for (DownloadTask task : downloadQueueService.getAllTasks()) {
+            // Parent item (wraps DownloadTask)
+            DownloadItem parentItem = new DownloadItem(task, null);
+            treeData.addItem(null, parentItem);
+
+            // Child items (wrap DownloadSubTask)
+            for (DownloadSubTask subTask : task.getSubTasks()) {
+                DownloadItem childItem = new DownloadItem(task, subTask);
+                treeData.addItem(parentItem, childItem);
+            }
+        }
+
+        TreeDataProvider<DownloadItem> dataProvider = new TreeDataProvider<>(treeData);
+        treeGrid.setDataProvider(dataProvider);
+
+        // Items collapsed by default (user preference)
+    }
+
+    private String getItemDisplayName(DownloadItem item) {
+        if (item.isParent()) {
+            return item.getTask().getDisplayName();
+        } else {
+            return item.getSubTask().getDisplayName();
+        }
+    }
+
+    private String getItemSpeed(DownloadItem item) {
+        if (item.isParent()) {
+            String bitrate = item.getTask().getBitrate();
+            return bitrate != null ? bitrate : "";
+        } else {
+            String speed = item.getSubTask().getDownloadSpeed();
+            return speed != null ? speed : "";
+        }
+    }
+
+    private String getItemCreatedTime(DownloadItem item) {
+        if (item.isParent()) {
+            if (item.getTask().getCreatedAt() != null) {
+                return item.getTask().getCreatedAt().format(TIME_FORMATTER);
+            }
+        }
+        return "";
     }
     
-    private Span createStatusBadge(DownloadTask task) {
-        Span badge = new Span(task.getStatus().getDisplayName());
+    private Span createStatusBadge(DownloadItem item) {
+        DownloadStatus status = item.isParent()
+                ? item.getTask().getStatus()
+                : item.getSubTask().getStatus();
+
+        Span badge = new Span(status.getDisplayName());
         badge.getElement().getThemeList().add("badge");
-        
-        switch (task.getStatus()) {
+
+        switch (status) {
             case COMPLETED -> badge.getElement().getThemeList().add("success");
             case FAILED, CANCELLED -> badge.getElement().getThemeList().add("error");
             case DOWNLOADING -> badge.getElement().getThemeList().add("contrast");
+            case MERGING -> badge.getElement().getThemeList().add("primary");
             default -> badge.getElement().getThemeList().add("primary");
         }
-        
+
         return badge;
     }
-    
-    private Div createProgressBar(DownloadTask task) {
+
+    private Div createProgressBar(DownloadItem item) {
         Div container = new Div();
         container.getStyle().set("width", "100%");
 
         ProgressBar progressBar = new ProgressBar();
         progressBar.getStyle().set("width", "100%");
 
-        if (task.getProgress() != null) {
-            progressBar.setValue(task.getProgress() / 100.0);
+        Double progress;
+        DownloadStatus status;
+
+        if (item.isParent()) {
+            // Show aggregated progress if has sub-tasks
+            progress = item.getTask().getSubTasks().isEmpty()
+                    ? item.getTask().getProgress()
+                    : item.getTask().getAggregatedProgress();
+            status = item.getTask().getStatus();
+        } else {
+            progress = item.getSubTask().getProgress();
+            status = item.getSubTask().getStatus();
+        }
+
+        if (progress != null) {
+            progressBar.setValue(progress / 100.0);
         } else {
             progressBar.setValue(0.0);
         }
 
-        if (task.getStatus() == DownloadStatus.COMPLETED) {
+        if (status == DownloadStatus.COMPLETED) {
             progressBar.setValue(1.0);
         }
 
-        if (task.getStatus() == DownloadStatus.DOWNLOADING ||
-            task.getStatus() == DownloadStatus.EXTRACTING) {
-            progressBar.setIndeterminate(task.getProgress() == null || task.getProgress() == 0.0);
+        if (status == DownloadStatus.DOWNLOADING ||
+                status == DownloadStatus.EXTRACTING) {
+            progressBar.setIndeterminate(progress == null || progress == 0.0);
         }
 
         // Create text showing percentage
@@ -206,8 +292,8 @@ public class DownloadQueueView extends VerticalLayout {
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("margin-top", "0.25rem");
 
-        if (task.getProgress() != null) {
-            progressText.setText(String.format("%.1f%%", task.getProgress()));
+        if (progress != null) {
+            progressText.setText(String.format("%.1f%%", progress));
         } else {
             progressText.setText("0.0%");
         }
@@ -215,11 +301,18 @@ public class DownloadQueueView extends VerticalLayout {
         container.add(progressBar, progressText);
         return container;
     }
-    
-    private HorizontalLayout createActionButtons(DownloadTask task) {
+
+    private HorizontalLayout createActionButtons(DownloadItem item) {
         HorizontalLayout actions = new HorizontalLayout();
         actions.setSpacing(true);
-        
+
+        // Only show actions for parent items
+        if (!item.isParent()) {
+            return actions;
+        }
+
+        DownloadTask task = item.getTask();
+
         if (!task.isCompleted() && !task.isFailed()) {
             Button cancelBtn = new Button(VaadinIcon.CLOSE_SMALL.create());
             cancelBtn.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
@@ -232,16 +325,47 @@ public class DownloadQueueView extends VerticalLayout {
             });
             actions.add(cancelBtn);
         }
-        
+
         if (task.isFailed() && task.getErrorMessage() != null) {
             Button infoBtn = new Button(VaadinIcon.INFO_CIRCLE.create());
             infoBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
-            infoBtn.addClickListener(e -> 
+            infoBtn.addClickListener(e ->
                     Notification.show(task.getErrorMessage(), 5000, Notification.Position.MIDDLE)
             );
             actions.add(infoBtn);
         }
-        
+
         return actions;
+    }
+
+    /**
+     * Wrapper class for TreeGrid items
+     */
+    @Data
+    private static class DownloadItem {
+        private final DownloadTask task;
+        private final DownloadSubTask subTask;  // null for parent items
+
+        public boolean isParent() {
+            return subTask == null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof DownloadItem)) return false;
+            DownloadItem that = (DownloadItem) o;
+
+            if (isParent()) {
+                return task.getId().equals(that.task.getId());
+            } else {
+                return subTask.getId().equals(that.subTask.getId());
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return isParent() ? task.getId().hashCode() : subTask.getId().hashCode();
+        }
     }
 }
