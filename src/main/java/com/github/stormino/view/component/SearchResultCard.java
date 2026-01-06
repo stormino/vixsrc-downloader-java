@@ -160,17 +160,21 @@ public class SearchResultCard extends VerticalLayout {
         // TV-specific: Season/Episode selectors
         if (type == DownloadTask.ContentType.TV) {
             IntegerField seasonField = new IntegerField("Season");
-            seasonField.setValue(1);
+            seasonField.setPlaceholder("All seasons");
+            seasonField.setHelperText("Leave blank to download all seasons");
             seasonField.setMin(1);
             seasonField.setStepButtonsVisible(true);
+            seasonField.setClearButtonVisible(true);
             seasonField.setWidthFull();
-            
+
             IntegerField episodeField = new IntegerField("Episode");
-            episodeField.setValue(1);
+            episodeField.setPlaceholder("All episodes");
+            episodeField.setHelperText("Leave blank to download all episodes in season");
             episodeField.setMin(1);
             episodeField.setStepButtonsVisible(true);
+            episodeField.setClearButtonVisible(true);
             episodeField.setWidthFull();
-            
+
             layout.add(seasonField, episodeField);
             
             // Download button

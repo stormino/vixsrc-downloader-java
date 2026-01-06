@@ -266,13 +266,53 @@ public class TmdbMetadataService {
     }
     
     /**
+     * Get TV show basic metadata (without episode info)
+     */
+    public Optional<ContentMetadata> getTvShowMetadata(int tmdbId) {
+        if (!isAvailable()) {
+            return Optional.empty();
+        }
+
+        try {
+            Response<TvShow> showResponse = tmdb.tvService()
+                    .tv(tmdbId, null, null)
+                    .execute();
+
+            if (!showResponse.isSuccessful() || showResponse.body() == null) {
+                return Optional.empty();
+            }
+
+            TvShow show = showResponse.body();
+            Integer year = null;
+            if (show.first_air_date != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy");
+                year = Integer.parseInt(sdf.format(show.first_air_date));
+            }
+
+            return Optional.of(ContentMetadata.builder()
+                    .tmdbId(tmdbId)
+                    .title(show.name)
+                    .originalTitle(show.original_name)
+                    .year(year)
+                    .numberOfSeasons(show.number_of_seasons)
+                    .overview(show.overview)
+                    .voteAverage(show.vote_average)
+                    .build());
+
+        } catch (IOException e) {
+            log.error("Error fetching TV show metadata for ID {}: {}", tmdbId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Get all seasons for a TV show
      */
     public List<TvSeason> getSeasons(int tmdbId) {
         if (!isAvailable()) {
             return List.of();
         }
-        
+
         try {
             Response<TvShow> response = tmdb.tvService()
                     .tv(tmdbId, null, new AppendToResponse(AppendToResponseItem.IMAGES))
@@ -287,7 +327,7 @@ public class TmdbMetadataService {
             return show.seasons != null ? show.seasons.stream()
                     .filter(season -> season.season_number > 0)
                     .toList() : List.of();
-            
+
         } catch (IOException e) {
             log.error("Error fetching seasons for show {}: {}", tmdbId, e.getMessage());
             return List.of();

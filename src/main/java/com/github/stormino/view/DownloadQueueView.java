@@ -138,6 +138,8 @@ public class DownloadQueueView extends VerticalLayout {
         log.debug("Received update for task {}: {}%", update.getTaskId(), update.getProgress());
 
         downloadQueueService.getTask(update.getTaskId()).ifPresent(task -> {
+            boolean needsResort = false;
+
             if (update.getSubTaskId() != null) {
                 // Sub-task update
                 task.getSubTasks().stream()
@@ -177,11 +179,18 @@ public class DownloadQueueView extends VerticalLayout {
                         });
             } else {
                 // Parent task update
+                DownloadStatus oldStatus = task.getStatus();
+
                 if (update.getProgress() != null) {
                     task.setProgress(update.getProgress());
                 }
                 if (update.getStatus() != null) {
                     task.setStatus(update.getStatus());
+                    // Check if status changed between active/inactive
+                    if (oldStatus != update.getStatus() &&
+                        (isActiveStatus(oldStatus) != isActiveStatus(update.getStatus()))) {
+                        needsResort = true;
+                    }
                     // Clear speed/ETA on terminal states
                     if (update.getStatus() == DownloadStatus.COMPLETED ||
                         update.getStatus() == DownloadStatus.FAILED ||
@@ -209,15 +218,34 @@ public class DownloadQueueView extends VerticalLayout {
                 }
             }
 
-            // Refresh entire tree grid
-            treeGrid.getDataProvider().refreshAll();
+            // Refresh grid - full refresh if resort needed, otherwise just refresh data
+            if (needsResort) {
+                refreshGrid();
+            } else {
+                treeGrid.getDataProvider().refreshAll();
+            }
         });
     }
 
     private void refreshGrid() {
         TreeData<DownloadItem> treeData = new TreeData<>();
 
-        for (DownloadTask task : downloadQueueService.getAllTasks()) {
+        // Sort tasks: in-progress first, then alphabetically
+        var sortedTasks = downloadQueueService.getAllTasks().stream()
+                .sorted((t1, t2) -> {
+                    // In-progress tasks always first
+                    boolean t1Active = isActiveStatus(t1.getStatus());
+                    boolean t2Active = isActiveStatus(t2.getStatus());
+
+                    if (t1Active && !t2Active) return -1;
+                    if (!t1Active && t2Active) return 1;
+
+                    // Then alphabetically by display name
+                    return t1.getDisplayName().compareToIgnoreCase(t2.getDisplayName());
+                })
+                .toList();
+
+        for (DownloadTask task : sortedTasks) {
             // Parent item (wraps DownloadTask)
             DownloadItem parentItem = new DownloadItem(task, null);
             treeData.addItem(null, parentItem);
@@ -233,6 +261,12 @@ public class DownloadQueueView extends VerticalLayout {
         treeGrid.setDataProvider(dataProvider);
 
         // Items collapsed by default (user preference)
+    }
+
+    private boolean isActiveStatus(DownloadStatus status) {
+        return status == DownloadStatus.DOWNLOADING ||
+               status == DownloadStatus.EXTRACTING ||
+               status == DownloadStatus.MERGING;
     }
 
     private String getItemDisplayName(DownloadItem item) {
@@ -452,9 +486,9 @@ public class DownloadQueueView extends VerticalLayout {
             DownloadItem that = (DownloadItem) o;
 
             if (isParent()) {
-                return task.getId().equals(that.task.getId());
+                return that.isParent() && task.getId().equals(that.task.getId());
             } else {
-                return subTask.getId().equals(that.subTask.getId());
+                return !that.isParent() && subTask.getId().equals(that.subTask.getId());
             }
         }
 

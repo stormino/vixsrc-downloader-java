@@ -206,9 +206,12 @@ public class SearchView extends VerticalLayout {
                                 Integer season, Integer episode,
                                 Set<String> languages, String quality) {
         // Show immediate feedback
-        Notification.show("Adding to queue...", 2000, Notification.Position.BOTTOM_END);
+        String feedbackMessage = buildQueueMessage(content, type, season, episode);
+        Notification.show(feedbackMessage, 2000, Notification.Position.BOTTOM_END);
 
         // Run on separate thread to avoid blocking UI
+        int taskCountBefore = downloadQueueService.getAllTasks().size();
+
         CompletableFuture.supplyAsync(() -> {
             return downloadQueueService.addDownload(
                     content.getTmdbId(),
@@ -220,11 +223,19 @@ public class SearchView extends VerticalLayout {
             );
         }).thenAccept(task -> {
             getUI().ifPresent(ui -> ui.access(() -> {
-                Notification notification = Notification.show(
-                        "✓ Added to queue: " + task.getDisplayName(),
-                        5000,
-                        Notification.Position.BOTTOM_END
-                );
+                int taskCountAfter = downloadQueueService.getAllTasks().size();
+                int addedTasks = taskCountAfter - taskCountBefore;
+
+                String message;
+                if (addedTasks > 1) {
+                    message = String.format("✓ Added %d episodes to queue", addedTasks);
+                } else if (task != null) {
+                    message = "✓ Added to queue: " + task.getDisplayName();
+                } else {
+                    message = "✓ Added to queue";
+                }
+
+                Notification notification = Notification.show(message, 5000, Notification.Position.BOTTOM_END);
                 notification.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
             }));
         }).exceptionally(e -> {
@@ -234,5 +245,17 @@ public class SearchView extends VerticalLayout {
             }));
             return null;
         });
+    }
+
+    private String buildQueueMessage(ContentMetadata content, DownloadTask.ContentType type,
+                                     Integer season, Integer episode) {
+        if (type == DownloadTask.ContentType.TV) {
+            if (season == null && episode == null) {
+                return "Adding entire show to queue...";
+            } else if (season != null && episode == null) {
+                return "Adding season " + season + " to queue...";
+            }
+        }
+        return "Adding to queue...";
     }
 }

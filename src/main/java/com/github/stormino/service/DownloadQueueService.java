@@ -39,7 +39,39 @@ public class DownloadQueueService {
     public DownloadTask addDownload(int tmdbId, DownloadTask.ContentType contentType,
                                    Integer season, Integer episode,
                                    List<String> languages, String quality) {
-        
+
+        // Handle batch downloads for TV shows
+        if (contentType == DownloadTask.ContentType.TV) {
+            if (season == null && episode == null) {
+                // Download entire show
+                return addEntireShowDownload(tmdbId, languages, quality);
+            } else if (season != null && episode == null) {
+                // Download entire season
+                return addEntireSeasonDownload(tmdbId, season, languages, quality);
+            }
+        }
+
+        // Single episode or movie download
+        return addSingleDownload(tmdbId, contentType, season, episode, languages, quality);
+    }
+
+    /**
+     * Add a single download task (movie or specific TV episode)
+     */
+    private DownloadTask addSingleDownload(int tmdbId, DownloadTask.ContentType contentType,
+                                          Integer season, Integer episode,
+                                          List<String> languages, String quality) {
+        return addSingleDownload(tmdbId, contentType, season, episode, languages, quality, true);
+    }
+
+    /**
+     * Add a single download task with option to defer processing
+     */
+    private DownloadTask addSingleDownload(int tmdbId, DownloadTask.ContentType contentType,
+                                          Integer season, Integer episode,
+                                          List<String> languages, String quality,
+                                          boolean startProcessing) {
+
         // Fetch metadata
         ContentMetadata metadata = null;
         if (contentType == DownloadTask.ContentType.TV && season != null && episode != null) {
@@ -47,7 +79,7 @@ public class DownloadQueueService {
         } else if (contentType == DownloadTask.ContentType.MOVIE) {
             metadata = metadataService.getMovieMetadata(tmdbId).orElse(null);
         }
-        
+
         // Build task
         DownloadTask.DownloadTaskBuilder taskBuilder = DownloadTask.builder()
                 .contentType(contentType)
@@ -56,32 +88,201 @@ public class DownloadQueueService {
                 .episode(episode)
                 .languages(languages != null ? languages : properties.getDownload().getDefaultLanguageList())
                 .quality(quality != null ? quality : properties.getDownload().getDefaultQuality());
-        
+
         if (metadata != null) {
             taskBuilder
                     .title(metadata.getTitle())
                     .episodeName(metadata.getEpisodeName())
                     .year(metadata.getYear());
         }
-        
+
         DownloadTask task = taskBuilder.build();
-        
+
         // Generate output path
         String outputPath = generateOutputPath(task, metadata);
         task.setOutputPath(outputPath);
-        
+
         // Store and queue
         tasks.put(task.getId(), task);
         synchronized (queue) {
             queue.offer(task);
         }
-        
+
         log.info("Added download task: {} [{}]", task.getDisplayName(), task.getId());
-        
-        // Start processing
-        processQueue();
-        
+
+        // Start processing only if requested
+        if (startProcessing) {
+            processQueue();
+        }
+
         return task;
+    }
+
+    /**
+     * Add download tasks for entire show (all seasons and episodes)
+     */
+    private DownloadTask addEntireShowDownload(int tmdbId, List<String> languages, String quality) {
+        log.info("Queueing entire show download for TMDB ID: {}", tmdbId);
+
+        // Fetch show metadata once
+        var showMetadata = metadataService.getTvShowMetadata(tmdbId).orElse(null);
+        String showTitle = showMetadata != null ? showMetadata.getTitle() : null;
+        Integer year = showMetadata != null ? showMetadata.getYear() : null;
+
+        var seasons = metadataService.getSeasons(tmdbId);
+        int totalEpisodes = 0;
+        DownloadTask firstTask = null;
+
+        // Queue all episodes without fetching individual metadata
+        for (var season : seasons) {
+            var episodes = metadataService.getEpisodes(tmdbId, season.season_number);
+            for (var episode : episodes) {
+                DownloadTask task = createTaskWithoutMetadataFetch(
+                    tmdbId, season.season_number, episode.episode_number,
+                    showTitle, episode.name, year, languages, quality);
+                if (firstTask == null) {
+                    firstTask = task;
+                }
+                totalEpisodes++;
+
+                // Broadcast queued status every 10 episodes for UI responsiveness
+                if (totalEpisodes % 10 == 0) {
+                    broadcastQueuedStatus(task);
+                }
+            }
+        }
+
+        // Broadcast final queued tasks
+        tasks.values().stream()
+            .filter(t -> t.getStatus() == DownloadStatus.QUEUED)
+            .forEach(this::broadcastQueuedStatus);
+
+        log.info("Queued {} episodes from {} seasons", totalEpisodes, seasons.size());
+
+        // Start processing once for all queued episodes
+        processQueue();
+
+        return firstTask;
+    }
+
+    /**
+     * Add download tasks for entire season
+     */
+    private DownloadTask addEntireSeasonDownload(int tmdbId, int season, List<String> languages, String quality) {
+        log.info("Queueing entire season download for TMDB ID: {}, Season: {}", tmdbId, season);
+
+        // Fetch show metadata once
+        var showMetadata = metadataService.getTvShowMetadata(tmdbId).orElse(null);
+        String showTitle = showMetadata != null ? showMetadata.getTitle() : null;
+        Integer year = showMetadata != null ? showMetadata.getYear() : null;
+
+        var episodes = metadataService.getEpisodes(tmdbId, season);
+        DownloadTask firstTask = null;
+
+        // Queue all episodes without fetching individual metadata
+        int episodeCount = 0;
+        for (var episode : episodes) {
+            DownloadTask task = createTaskWithoutMetadataFetch(
+                tmdbId, season, episode.episode_number,
+                showTitle, episode.name, year, languages, quality);
+            if (firstTask == null) {
+                firstTask = task;
+            }
+            episodeCount++;
+
+            // Broadcast queued status every 5 episodes for UI responsiveness
+            if (episodeCount % 5 == 0) {
+                broadcastQueuedStatus(task);
+            }
+        }
+
+        // Broadcast final queued tasks
+        tasks.values().stream()
+            .filter(t -> t.getStatus() == DownloadStatus.QUEUED)
+            .forEach(this::broadcastQueuedStatus);
+
+        log.info("Queued {} episodes for season {}", episodes.size(), season);
+
+        // Start processing once for all queued episodes
+        processQueue();
+
+        return firstTask;
+    }
+
+    /**
+     * Broadcast queued status to update UI
+     */
+    private void broadcastQueuedStatus(DownloadTask task) {
+        progressBroadcast.broadcastProgress(ProgressUpdate.builder()
+                .taskId(task.getId())
+                .status(DownloadStatus.QUEUED)
+                .progress(0.0)
+                .message("Queued")
+                .build());
+    }
+
+    /**
+     * Create task directly without individual metadata fetch
+     */
+    private DownloadTask createTaskWithoutMetadataFetch(int tmdbId, int season, int episode,
+                                                        String title, String episodeName, Integer year,
+                                                        List<String> languages, String quality) {
+        // Build task
+        DownloadTask task = DownloadTask.builder()
+                .contentType(DownloadTask.ContentType.TV)
+                .tmdbId(tmdbId)
+                .season(season)
+                .episode(episode)
+                .title(title)
+                .episodeName(episodeName)
+                .year(year)
+                .languages(languages != null ? languages : properties.getDownload().getDefaultLanguageList())
+                .quality(quality != null ? quality : properties.getDownload().getDefaultQuality())
+                .build();
+
+        // Generate output path
+        String outputPath = generateOutputPathFast(task);
+        task.setOutputPath(outputPath);
+
+        // Store and queue
+        tasks.put(task.getId(), task);
+        synchronized (queue) {
+            queue.offer(task);
+        }
+
+        return task;
+    }
+
+    /**
+     * Fast path generation without metadata object
+     */
+    private String generateOutputPathFast(DownloadTask task) {
+        String basePath = properties.getDownload().getBasePath();
+        String filename;
+
+        if (task.getContentType() == DownloadTask.ContentType.TV && task.getTitle() != null) {
+            String episodePart = task.getEpisodeName() != null ?
+                " - " + task.getEpisodeName() : "";
+            filename = String.format("%s - S%02dE%02d%s.mp4",
+                task.getTitle(), task.getSeason(), task.getEpisode(), episodePart);
+            filename = sanitizeFilename(filename);
+
+            String showDir = sanitizeFilename(task.getTitle());
+            String seasonDir = String.format("Season %02d", task.getSeason());
+
+            try {
+                java.nio.file.Files.createDirectories(
+                    java.nio.file.Paths.get(basePath, showDir, seasonDir));
+            } catch (IOException e) {
+                log.error("Failed to create directories: {}", e.getMessage());
+            }
+
+            return java.nio.file.Paths.get(basePath, showDir, seasonDir, filename).toString();
+        } else {
+            filename = String.format("tv_%d_s%02de%02d.mp4",
+                task.getTmdbId(), task.getSeason(), task.getEpisode());
+            return java.nio.file.Paths.get(basePath, filename).toString();
+        }
     }
     
     /**
