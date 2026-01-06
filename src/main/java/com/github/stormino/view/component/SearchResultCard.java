@@ -52,46 +52,69 @@ public class SearchResultCard extends VerticalLayout {
     
     private void createCard() {
         addClassNames(
-                LumoUtility.Background.CONTRAST_5,
                 LumoUtility.BorderRadius.MEDIUM,
                 LumoUtility.Padding.MEDIUM,
                 LumoUtility.BoxShadow.SMALL
         );
         setSpacing(true);
-        
-        // Title
+
+        // Set background color based on content type
+        if (type == DownloadTask.ContentType.MOVIE) {
+            getStyle().set("background-color", "#E3F2FD"); // Pastel blue for movies
+        } else {
+            getStyle().set("background-color", "#FFEBEE"); // Pastel red for TV shows
+        }
+
+        // Title row
+        HorizontalLayout titleRow = new HorizontalLayout();
+        titleRow.setSpacing(true);
+        titleRow.setAlignItems(Alignment.BASELINE);
+        titleRow.addClassNames(LumoUtility.Gap.SMALL);
+
         H3 title = new H3(content.getTitle());
         title.addClassNames(LumoUtility.Margin.NONE, LumoUtility.FontSize.MEDIUM);
-        
-        // Metadata
-        HorizontalLayout metadata = new HorizontalLayout();
-        metadata.setSpacing(true);
-        metadata.addClassNames(LumoUtility.Gap.SMALL);
-        
+        titleRow.add(title);
+
+        // TV-specific info next to title
+        if (type == DownloadTask.ContentType.TV) {
+            if (content.getNumberOfSeasons() != null) {
+                Span seasons = new Span("(" + content.getNumberOfSeasons() + " seasons");
+                seasons.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
+                titleRow.add(seasons);
+            }
+            if (content.getTotalEpisodes() != null) {
+                Span episodes = new Span("• " + content.getTotalEpisodes() + " episodes)");
+                episodes.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
+                titleRow.add(episodes);
+            }
+        }
+
+        // First row: Year and Rating
+        HorizontalLayout firstRow = new HorizontalLayout();
+        firstRow.setSpacing(true);
+        firstRow.addClassNames(LumoUtility.Gap.SMALL);
+
         if (content.getYear() != null) {
             Span year = new Span(content.getYear().toString());
             year.addClassNames(LumoUtility.TextColor.SECONDARY);
-            metadata.add(year);
+            firstRow.add(year);
         }
-        
+
         if (content.getVoteAverage() != null) {
             Span rating = new Span(String.format("⭐ %.1f", content.getVoteAverage()));
             rating.addClassNames(LumoUtility.TextColor.WARNING);
-            metadata.add(rating);
+            firstRow.add(rating);
         }
-        
-        // TV-specific info
-        if (type == DownloadTask.ContentType.TV) {
-            if (content.getNumberOfSeasons() != null) {
-                Span seasons = new Span(content.getNumberOfSeasons() + " seasons");
-                seasons.addClassNames(LumoUtility.TextColor.SECONDARY);
-                metadata.add(seasons);
-            }
-            if (content.getTotalEpisodes() != null) {
-                Span episodes = new Span(content.getTotalEpisodes() + " episodes");
-                episodes.addClassNames(LumoUtility.TextColor.SECONDARY);
-                metadata.add(episodes);
-            }
+
+        // Second row: TMDB ID
+        HorizontalLayout secondRow = new HorizontalLayout();
+        secondRow.setSpacing(true);
+        secondRow.addClassNames(LumoUtility.Gap.SMALL);
+
+        if (content.getTmdbId() != null) {
+            Span tmdbId = new Span("TMDB: " + content.getTmdbId());
+            tmdbId.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
+            secondRow.add(tmdbId);
         }
         
         // Overview
@@ -106,8 +129,8 @@ public class SearchResultCard extends VerticalLayout {
         Button downloadBtn = new Button("Download", VaadinIcon.DOWNLOAD.create());
         downloadBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         downloadBtn.addClickListener(e -> openDownloadDialog());
-        
-        add(title, metadata, overview, downloadBtn);
+
+        add(titleRow, firstRow, secondRow, overview, downloadBtn);
     }
     
     private void openDownloadDialog() {

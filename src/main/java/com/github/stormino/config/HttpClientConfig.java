@@ -109,7 +109,7 @@ public class HttpClientConfig {
                     
                     // Retry on 5xx errors
                     if (response.code() >= 500) {
-                        log.warn("Server error {} on attempt {}/{} for {}",
+                        log.debug("Server error {} on attempt {}/{} for {}",
                                 response.code(), attempt + 1, maxRetries, request.url());
                         
                         if (attempt < maxRetries - 1) {

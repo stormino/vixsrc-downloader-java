@@ -21,11 +21,13 @@ import com.github.stormino.model.ContentMetadata;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.service.DownloadQueueService;
 import com.github.stormino.service.TmdbMetadataService;
+import com.github.stormino.service.VixSrcAvailabilityService;
 import com.github.stormino.view.component.SearchResultCard;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Route(value = "", layout = MainLayout.class)
 @PageTitle("Search | VixSrc Downloader")
@@ -33,18 +35,21 @@ public class SearchView extends VerticalLayout {
     
     private final TmdbMetadataService tmdbService;
     private final DownloadQueueService downloadQueueService;
-    
+    private final VixSrcAvailabilityService availabilityService;
+
     private final TextField searchField;
     private final RadioButtonGroup<String> contentTypeGroup;
     private final Button searchButton;
     private final Div resultsContainer;
-    
+
     private final MultiSelectComboBox<String> languageSelector;
     private final Select<String> qualitySelector;
-    
-    public SearchView(TmdbMetadataService tmdbService, DownloadQueueService downloadQueueService) {
+
+    public SearchView(TmdbMetadataService tmdbService, DownloadQueueService downloadQueueService,
+                     VixSrcAvailabilityService availabilityService) {
         this.tmdbService = tmdbService;
         this.downloadQueueService = downloadQueueService;
+        this.availabilityService = availabilityService;
         
         setSizeFull();
         setPadding(true);
@@ -119,45 +124,71 @@ public class SearchView extends VerticalLayout {
     
     private void performSearch() {
         String query = searchField.getValue();
-        
+
         if (query == null || query.isBlank()) {
             Notification.show("Please enter a search term", 3000, Notification.Position.MIDDLE)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
             return;
         }
-        
+
         resultsContainer.removeAll();
         searchButton.setEnabled(false);
         searchButton.setText("Searching...");
-        
-        getUI().ifPresent(ui -> ui.access(() -> {
+
+        Set<String> selectedLanguages = languageSelector.getValue();
+        String contentType = contentTypeGroup.getValue();
+
+        CompletableFuture.runAsync(() -> {
             try {
-                String contentType = contentTypeGroup.getValue();
-                
+                List<ContentMetadata> availableMovies = List.of();
+                List<ContentMetadata> availableTvShows = List.of();
+
                 if ("Movies".equals(contentType) || "Both".equals(contentType)) {
                     List<ContentMetadata> movies = tmdbService.searchMovies(query);
-                    movies.forEach(movie -> addResultCard(movie, DownloadTask.ContentType.MOVIE));
+                    availableMovies = movies.parallelStream()
+                            .filter(m -> availabilityService.checkMovieAvailability(
+                                    m.getTmdbId(),
+                                    selectedLanguages
+                            ).isAvailable())
+                            .collect(Collectors.toList());
                 }
-                
+
                 if ("TV Shows".equals(contentType) || "Both".equals(contentType)) {
                     List<ContentMetadata> tvShows = tmdbService.searchTvShows(query);
-                    tvShows.forEach(show -> addResultCard(show, DownloadTask.ContentType.TV));
+                    availableTvShows = tvShows.parallelStream()
+                            .filter(tv -> availabilityService.checkTvAvailability(
+                                    tv.getTmdbId(),
+                                    selectedLanguages
+                            ).isAvailable())
+                            .collect(Collectors.toList());
                 }
-                
-                if (resultsContainer.getChildren().count() == 0) {
-                    Paragraph noResults = new Paragraph("No results found for: " + query);
-                    noResults.addClassNames(LumoUtility.TextColor.SECONDARY);
-                    resultsContainer.add(noResults);
-                }
-                
+
+                List<ContentMetadata> finalAvailableMovies = availableMovies;
+                List<ContentMetadata> finalAvailableTvShows = availableTvShows;
+
+                getUI().ifPresent(ui -> ui.access(() -> {
+                    finalAvailableMovies.forEach(movie -> addResultCard(movie, DownloadTask.ContentType.MOVIE));
+                    finalAvailableTvShows.forEach(show -> addResultCard(show, DownloadTask.ContentType.TV));
+
+                    if (resultsContainer.getChildren().count() == 0) {
+                        Paragraph noResults = new Paragraph("No results found for: " + query);
+                        noResults.addClassNames(LumoUtility.TextColor.SECONDARY);
+                        resultsContainer.add(noResults);
+                    }
+
+                    searchButton.setEnabled(true);
+                    searchButton.setText("Search");
+                }));
+
             } catch (Exception e) {
-                Notification.show("Search failed: " + e.getMessage(), 5000, Notification.Position.MIDDLE)
-                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
-            } finally {
-                searchButton.setEnabled(true);
-                searchButton.setText("Search");
+                getUI().ifPresent(ui -> ui.access(() -> {
+                    Notification.show("Search failed: " + e.getMessage(), 5000, Notification.Position.MIDDLE)
+                            .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    searchButton.setEnabled(true);
+                    searchButton.setText("Search");
+                }));
             }
-        }));
+        });
     }
     
     private void addResultCard(ContentMetadata content, DownloadTask.ContentType type) {
