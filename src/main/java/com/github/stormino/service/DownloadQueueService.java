@@ -6,8 +6,9 @@ import com.github.stormino.model.DownloadStatus;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.model.PlaylistInfo;
 import com.github.stormino.model.ProgressUpdate;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -20,18 +21,35 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DownloadQueueService {
-    
+
     private final VixSrcExtractorService extractorService;
     private final TmdbMetadataService metadataService;
     private final DownloadExecutorService executorService;
     private final TrackDownloadOrchestrator trackOrchestrator;
     private final ProgressBroadcastService progressBroadcast;
     private final VixSrcProperties properties;
-    
+
+    @Lazy
+    @Autowired
+    private DownloadQueueService self;
+
     private final ConcurrentHashMap<String, DownloadTask> tasks = new ConcurrentHashMap<>();
     private final Queue<DownloadTask> queue = new LinkedList<>();
+
+    public DownloadQueueService(VixSrcExtractorService extractorService,
+                                TmdbMetadataService metadataService,
+                                DownloadExecutorService executorService,
+                                TrackDownloadOrchestrator trackOrchestrator,
+                                ProgressBroadcastService progressBroadcast,
+                                VixSrcProperties properties) {
+        this.extractorService = extractorService;
+        this.metadataService = metadataService;
+        this.executorService = executorService;
+        this.trackOrchestrator = trackOrchestrator;
+        this.progressBroadcast = progressBroadcast;
+        this.properties = properties;
+    }
     
     /**
      * Add a new download task
@@ -332,56 +350,60 @@ public class DownloadQueueService {
     }
     
     /**
-     * Process download queue asynchronously
+     * Process download queue - triggers async task processing
      */
-    @Async("downloadExecutor")
-    public void processQueue() {
-        DownloadTask task;
-        
-        synchronized (queue) {
-            task = queue.poll();
+    public synchronized void processQueue() {
+        int maxParallel = properties.getDownload().getParallelDownloads();
+        long activeCount = tasks.values().stream()
+                .filter(t -> t.getStatus() == DownloadStatus.DOWNLOADING ||
+                            t.getStatus() == DownloadStatus.EXTRACTING)
+                .count();
+
+        // Start new tasks if slots available
+        int toStart = (int) (maxParallel - activeCount);
+        for (int i = 0; i < toStart; i++) {
+            DownloadTask task = queue.poll();
+            if (task == null) {
+                break;
+            }
+            self.processTaskAsync(task);
         }
-        
-        if (task == null) {
-            return;
-        }
-        
-        processTask(task);
     }
-    
-    private void processTask(DownloadTask task) {
+
+    @Async("downloadExecutor")
+    public void processTaskAsync(DownloadTask task) {
         log.info("Processing task: {} [{}]", task.getDisplayName(), task.getId());
-        
+
         try {
             // Update status
             updateTaskStatus(task, DownloadStatus.EXTRACTING, 0.0, "Extracting playlist URL");
-            
+
             // Extract playlist URL for primary language
             String primaryLang = task.getLanguages().get(0);
             Optional<PlaylistInfo> playlistInfo;
-            
+
             if (task.getContentType() == DownloadTask.ContentType.TV) {
                 playlistInfo = extractorService.getTvPlaylist(
                         task.getTmdbId(), task.getSeason(), task.getEpisode(), primaryLang);
             } else {
                 playlistInfo = extractorService.getMoviePlaylist(task.getTmdbId(), primaryLang);
             }
-            
+
             if (playlistInfo.isEmpty()) {
                 updateTaskStatus(task, DownloadStatus.FAILED, 0.0, "Failed to extract playlist URL");
                 return;
             }
-            
+
             task.setPlaylistUrl(playlistInfo.get().getUrl());
 
             // Always use track orchestrator for concurrent downloads
             downloadWithTracks(task);
-            
+
         } catch (Exception e) {
             log.error("Error processing task {}: {}", task.getId(), e.getMessage(), e);
             updateTaskStatus(task, DownloadStatus.FAILED, 0.0, "Error: " + e.getMessage());
         } finally {
-            // Process next task
+            // Trigger queue processing for next task
             processQueue();
         }
     }

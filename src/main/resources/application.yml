@@ -2,7 +2,7 @@ vixsrc:
   download:
     base-path: ${DOWNLOAD_BASE_PATH:downloads}
     temp-path: ${DOWNLOAD_TEMP_PATH:downloads/temp}
-    parallel-downloads: ${PARALLEL_DOWNLOADS:3}
+    parallel-downloads: ${PARALLEL_DOWNLOADS:10}
     segment-concurrency: ${SEGMENT_CONCURRENCY:5}
     default-quality: ${DEFAULT_QUALITY:best}
     default-languages: ${DEFAULT_LANGUAGES:en}

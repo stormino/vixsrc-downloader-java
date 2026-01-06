@@ -31,7 +31,9 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -45,6 +47,9 @@ public class DownloadQueueView extends VerticalLayout {
     private Consumer<ProgressUpdate> progressListener;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final long THROTTLE_MS = 200; // Max one refresh per task every 200ms
+    private final Map<String, Long> lastUpdateTime = new ConcurrentHashMap<>();
+    private final Map<String, DownloadItem> itemCache = new ConcurrentHashMap<>();
     
     public DownloadQueueView(DownloadQueueService downloadQueueService,
                              ProgressBroadcastService progressBroadcastService) {
@@ -137,6 +142,35 @@ public class DownloadQueueView extends VerticalLayout {
     private void handleProgressUpdate(ProgressUpdate update) {
         log.debug("Received update for task {}: {}%", update.getTaskId(), update.getProgress());
 
+        // Check if this is a new task not in cache (QUEUED status usually)
+        String itemKey = update.getSubTaskId() != null
+            ? update.getTaskId() + ":" + update.getSubTaskId()
+            : update.getTaskId();
+
+        if (!itemCache.containsKey(itemKey) && update.getStatus() == DownloadStatus.QUEUED) {
+            // New task queued - do full refresh
+            refreshGrid();
+            return;
+        }
+
+        // Throttle updates - skip if too frequent for this task
+        String throttleKey = update.getTaskId() + (update.getSubTaskId() != null ? ":" + update.getSubTaskId() : "");
+        long now = System.currentTimeMillis();
+        Long lastUpdate = lastUpdateTime.get(throttleKey);
+
+        // Always allow terminal state updates and status changes
+        boolean isTerminalUpdate = update.getStatus() == DownloadStatus.COMPLETED ||
+                                   update.getStatus() == DownloadStatus.FAILED ||
+                                   update.getStatus() == DownloadStatus.CANCELLED;
+
+        if (!isTerminalUpdate && lastUpdate != null && (now - lastUpdate) < THROTTLE_MS) {
+            // Still update the data model, but skip UI refresh
+            updateTaskData(update);
+            return;
+        }
+
+        lastUpdateTime.put(throttleKey, now);
+
         downloadQueueService.getTask(update.getTaskId()).ifPresent(task -> {
             boolean needsResort = false;
 
@@ -218,17 +252,54 @@ public class DownloadQueueView extends VerticalLayout {
                 }
             }
 
-            // Refresh grid - full refresh if resort needed, otherwise just refresh data
+            // Refresh grid - full refresh if resort needed, otherwise just refresh specific item
             if (needsResort) {
                 refreshGrid();
             } else {
-                treeGrid.getDataProvider().refreshAll();
+                // Refresh the affected item
+                DownloadItem item = itemCache.get(itemKey);
+                if (item != null) {
+                    treeGrid.getDataProvider().refreshItem(item);
+                }
+
+                // If this is a subtask update, also refresh parent to update aggregated progress
+                if (update.getSubTaskId() != null) {
+                    DownloadItem parentItem = itemCache.get(update.getTaskId());
+                    if (parentItem != null) {
+                        treeGrid.getDataProvider().refreshItem(parentItem);
+                    }
+                }
+            }
+        });
+    }
+
+    private void updateTaskData(ProgressUpdate update) {
+        // Update data model without UI refresh (for throttled updates)
+        downloadQueueService.getTask(update.getTaskId()).ifPresent(task -> {
+            if (update.getSubTaskId() != null) {
+                task.getSubTasks().stream()
+                        .filter(st -> st.getId().equals(update.getSubTaskId()))
+                        .findFirst()
+                        .ifPresent(subTask -> {
+                            if (update.getProgress() != null) subTask.setProgress(update.getProgress());
+                            if (update.getDownloadSpeed() != null) subTask.setDownloadSpeed(update.getDownloadSpeed());
+                            if (update.getDownloadedBytes() != null) subTask.setDownloadedBytes(update.getDownloadedBytes());
+                            if (update.getTotalBytes() != null) subTask.setTotalBytes(update.getTotalBytes());
+                            if (update.getEtaSeconds() != null) subTask.setEtaSeconds(update.getEtaSeconds());
+                        });
+            } else {
+                if (update.getProgress() != null) task.setProgress(update.getProgress());
+                if (update.getDownloadSpeed() != null) task.setDownloadSpeed(update.getDownloadSpeed());
+                if (update.getDownloadedBytes() != null) task.setDownloadedBytes(update.getDownloadedBytes());
+                if (update.getTotalBytes() != null) task.setTotalBytes(update.getTotalBytes());
+                if (update.getEtaSeconds() != null) task.setEtaSeconds(update.getEtaSeconds());
             }
         });
     }
 
     private void refreshGrid() {
         TreeData<DownloadItem> treeData = new TreeData<>();
+        itemCache.clear();
 
         // Sort tasks: in-progress first, then alphabetically
         var sortedTasks = downloadQueueService.getAllTasks().stream()
@@ -249,11 +320,13 @@ public class DownloadQueueView extends VerticalLayout {
             // Parent item (wraps DownloadTask)
             DownloadItem parentItem = new DownloadItem(task, null);
             treeData.addItem(null, parentItem);
+            itemCache.put(task.getId(), parentItem);
 
             // Child items (wrap DownloadSubTask)
             for (DownloadSubTask subTask : task.getSubTasks()) {
                 DownloadItem childItem = new DownloadItem(task, subTask);
                 treeData.addItem(parentItem, childItem);
+                itemCache.put(task.getId() + ":" + subTask.getId(), childItem);
             }
         }
 
