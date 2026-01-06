@@ -129,7 +129,14 @@ public class TrackDownloadOrchestrator {
             return false;
         }
 
-        // 7. Cleanup
+        // 7. Mark as completed
+        task.setStatus(DownloadStatus.COMPLETED);
+        task.setProgress(100.0);
+        task.setCompletedAt(LocalDateTime.now());
+        broadcastParentUpdate(task);
+        log.info("Download completed successfully: {}", task.getDisplayName());
+
+        // 8. Cleanup
         cleanupTempFiles(tempDir);
 
         return true;

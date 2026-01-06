@@ -73,15 +73,19 @@ public class SubtitleTrackDownloadStrategy {
                 subtitlePlaylistUrl = playlistUrl;
             }
 
-            // 3. Parse subtitle media playlist for segments
-            Optional<List<String>> segmentsOpt = hlsParser.parseSegments(subtitlePlaylistUrl, referer);
-            if (segmentsOpt.isEmpty()) {
-                log.error("Failed to parse subtitle segments");
+            // 3. Parse subtitle media playlist for segments and encryption info
+            Optional<HlsParserService.MediaPlaylistInfo> playlistInfoOpt =
+                    hlsParser.parseMediaPlaylistInfo(subtitlePlaylistUrl, referer);
+            if (playlistInfoOpt.isEmpty()) {
+                log.error("Failed to parse subtitle playlist info");
                 return false;
             }
 
-            List<String> segments = segmentsOpt.get();
-            log.info("Found {} subtitle segments for {}", segments.size(), language);
+            HlsParserService.MediaPlaylistInfo playlistInfo = playlistInfoOpt.get();
+            List<String> segments = playlistInfo.getSegments();
+            HlsParserService.EncryptionInfo encryption = playlistInfo.getEncryption();
+
+            log.info("Found {} subtitle segments for {}, encrypted={}", segments.size(), language, encryption != null);
 
             // 4. Download segments with progress tracking
             Path tempSubtitleFile = outputFile.getParent().resolve(outputFile.getFileName() + ".temp");
@@ -91,6 +95,7 @@ public class SubtitleTrackDownloadStrategy {
                     tempSubtitleFile,
                     referer,
                     maxConcurrent,
+                    encryption,
                     progress -> {
                         // Update sub-task progress
                         subTask.setProgress(progress.getPercentage());

@@ -91,6 +91,11 @@ public class DownloadTask {
             return progress;  // Fallback to parent progress
         }
 
+        // If all subtasks completed, return 100%
+        if (allSubTasksCompleted()) {
+            return 100.0;
+        }
+
         // Only use subtasks with size information for accurate progress
         List<DownloadSubTask> trackedSubTasks = subTasks.stream()
                 .filter(st -> st.getTotalBytes() != null && st.getTotalBytes() > 0)
@@ -110,7 +115,8 @@ public class DownloadTask {
             double totalProgress = activeSubTasks.stream()
                     .mapToDouble(st -> st.getProgress() != null ? st.getProgress() : 0.0)
                     .sum();
-            return totalProgress / activeSubTasks.size();
+            // Cap at 100% to handle any edge cases
+            return Math.min(100.0, totalProgress / activeSubTasks.size());
         }
 
         // Calculate size-based weighted progress
@@ -122,7 +128,8 @@ public class DownloadTask {
                 .mapToLong(st -> st.getDownloadedBytes() != null ? st.getDownloadedBytes() : 0L)
                 .sum();
 
-        return (totalDownloaded * 100.0) / totalSize;
+        // Cap at 100% (estimated total size may be inaccurate)
+        return Math.min(100.0, (totalDownloaded * 100.0) / totalSize);
     }
 
     public boolean allSubTasksCompleted() {

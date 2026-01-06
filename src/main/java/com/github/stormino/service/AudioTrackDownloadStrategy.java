@@ -19,6 +19,7 @@ import java.util.function.Consumer;
 public class AudioTrackDownloadStrategy {
 
     private final HlsParserService hlsParser;
+    private final HlsSegmentDownloader segmentDownloader;
     private final DownloadExecutorService executorService;
 
     /**
@@ -71,41 +72,126 @@ public class AudioTrackDownloadStrategy {
                 audioPlaylistUrl = playlistUrl;
             }
 
-            // 3. Parse audio media playlist for segments
-            Optional<List<String>> segmentsOpt = hlsParser.parseSegments(audioPlaylistUrl, referer);
-            if (segmentsOpt.isEmpty()) {
-                log.error("Failed to parse audio segments");
+            // 3. Parse audio media playlist for segments and encryption info
+            Optional<HlsParserService.MediaPlaylistInfo> playlistInfoOpt =
+                    hlsParser.parseMediaPlaylistInfo(audioPlaylistUrl, referer);
+            if (playlistInfoOpt.isEmpty()) {
+                log.error("Failed to parse audio playlist info");
                 return false;
             }
 
-            // 3. Use ffmpeg to download HLS (handles encryption automatically)
+            HlsParserService.MediaPlaylistInfo playlistInfo = playlistInfoOpt.get();
+            List<String> segments = playlistInfo.getSegments();
+            HlsParserService.EncryptionInfo encryption = playlistInfo.getEncryption();
+
+            log.info("Downloading {} audio segments with concurrency={}, encrypted={}",
+                    segments.size(), maxConcurrent, encryption != null);
+
+            // 4. Download segments concurrently with HlsSegmentDownloader
+            Path tempAudioFile = outputFile.getParent().resolve(outputFile.getFileName() + ".temp.ts");
+            long downloadStartTime = System.currentTimeMillis();
+
+            HlsSegmentDownloader.SegmentDownloadResult result = segmentDownloader.downloadSegments(
+                    segments,
+                    tempAudioFile,
+                    referer,
+                    maxConcurrent,
+                    encryption,
+                    progress -> {
+                        // Update sub-task progress
+                        subTask.setProgress(progress.getPercentage());
+                        subTask.setDownloadedBytes(progress.getDownloadedBytes());
+                        subTask.setTotalBytes(progress.getTotalBytes());
+
+                        // Calculate speed and ETA
+                        String downloadSpeed = null;
+                        Long etaSeconds = null;
+
+                        long elapsedMillis = System.currentTimeMillis() - downloadStartTime;
+                        long elapsedSeconds = Math.max(1, elapsedMillis / 1000);
+
+                        if (progress.getDownloadedBytes() != null && progress.getDownloadedBytes() > 0) {
+                            double bytesPerSecond = (double) progress.getDownloadedBytes() / elapsedSeconds;
+                            downloadSpeed = formatSpeed(bytesPerSecond);
+
+                            if (progress.getTotalBytes() != null && progress.getTotalBytes() > progress.getDownloadedBytes()) {
+                                long remainingBytes = progress.getTotalBytes() - progress.getDownloadedBytes();
+                                if (bytesPerSecond > 0) {
+                                    etaSeconds = (long) (remainingBytes / bytesPerSecond);
+                                }
+                            }
+                        }
+
+                        subTask.setDownloadSpeed(downloadSpeed);
+                        subTask.setEtaSeconds(etaSeconds);
+
+                        // Broadcast progress
+                        if (progressCallback != null) {
+                            ProgressUpdate update = ProgressUpdate.builder()
+                                    .taskId(parentTaskId)
+                                    .subTaskId(subTask.getId())
+                                    .status(DownloadStatus.DOWNLOADING)
+                                    .progress(progress.getPercentage())
+                                    .message(progress.getCurrentSegment())
+                                    .downloadedBytes(progress.getDownloadedBytes())
+                                    .totalBytes(progress.getTotalBytes())
+                                    .downloadSpeed(downloadSpeed)
+                                    .etaSeconds(etaSeconds)
+                                    .build();
+                            progressCallback.accept(update);
+                        }
+                    }
+            );
+
+            if (!result.isSuccess()) {
+                log.error("Audio segment download failed: {}", result.getErrorMessage());
+                return false;
+            }
+
+            // 5. Notify that conversion is starting
+            if (progressCallback != null) {
+                ProgressUpdate convertingUpdate = ProgressUpdate.builder()
+                        .taskId(parentTaskId)
+                        .subTaskId(subTask.getId())
+                        .status(DownloadStatus.DOWNLOADING)
+                        .progress(100.0)
+                        .message("Converting to M4A...")
+                        .build();
+                progressCallback.accept(convertingUpdate);
+            }
+
+            // 6. Convert TS to M4A using ffmpeg (fast copy, no re-encoding)
+            log.info("Converting audio from TS to M4A: {}", tempAudioFile);
             List<String> command = new ArrayList<>();
             command.add("ffmpeg");
             command.add("-hide_banner");
             command.add("-loglevel");
-            command.add("info");  // Changed from warning to info to see progress
-            command.add("-stats");  // Enable statistics output
-            command.add("-headers");
-            command.add("Referer: " + referer);
+            command.add("info");
+            command.add("-stats");
             command.add("-i");
-            command.add(audioPlaylistUrl);
+            command.add(tempAudioFile.toString());
             command.add("-c");
             command.add("copy");
             command.add("-vn");  // No video
             command.add("-y");
             command.add(outputFile.toString());
 
-            log.info("Downloading audio track with ffmpeg: {}", audioPlaylistUrl);
-
-            boolean success = executorService.executeTrackDownload(
+            boolean conversionSuccess = executorService.executeTrackDownload(
                     command,
                     parentTaskId,
                     subTask.getId(),
                     progressCallback
             );
 
-            if (!success) {
-                log.error("Audio track download failed");
+            // Cleanup temp file
+            try {
+                java.nio.file.Files.deleteIfExists(tempAudioFile);
+            } catch (Exception e) {
+                log.warn("Failed to delete temp file: {}", tempAudioFile);
+            }
+
+            if (!conversionSuccess) {
+                log.error("Audio conversion to M4A failed");
                 return false;
             }
 
@@ -150,5 +236,17 @@ public class AudioTrackDownloadStrategy {
         // No match found
         log.warn("No audio track found for language: {}", language);
         return null;
+    }
+
+    private String formatSpeed(double bytesPerSecond) {
+        if (bytesPerSecond >= 1_000_000_000) {
+            return String.format("%.2f GB/s", bytesPerSecond / 1_000_000_000);
+        } else if (bytesPerSecond >= 1_000_000) {
+            return String.format("%.2f MB/s", bytesPerSecond / 1_000_000);
+        } else if (bytesPerSecond >= 1_000) {
+            return String.format("%.2f KB/s", bytesPerSecond / 1_000);
+        } else {
+            return String.format("%.0f B/s", bytesPerSecond);
+        }
     }
 }

@@ -62,6 +62,22 @@ public class HlsParserService {
         private String name;
     }
 
+    @Data
+    @Builder
+    public static class EncryptionInfo {
+        private String method;  // e.g., "AES-128", "NONE"
+        private String uri;     // Key URI
+        private String iv;      // Initialization Vector (hex string)
+    }
+
+    @Data
+    @Builder
+    public static class MediaPlaylistInfo {
+        private List<String> segments;
+        private EncryptionInfo encryption;
+        private String baseUrl;
+    }
+
     public enum PlaylistType {
         MASTER,  // Contains references to media playlists
         MEDIA    // Contains segment URLs
@@ -113,6 +129,25 @@ public class HlsParserService {
 
         } catch (Exception e) {
             log.error("Failed to parse segments: {}", e.getMessage(), e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Parse media playlist with encryption info
+     */
+    public Optional<MediaPlaylistInfo> parseMediaPlaylistInfo(String mediaPlaylistUrl, String referer) {
+        try {
+            String content = fetchPlaylistContent(mediaPlaylistUrl, referer);
+            if (content == null) {
+                return Optional.empty();
+            }
+
+            String baseUrl = extractBaseUrl(mediaPlaylistUrl);
+            return Optional.of(parseMediaPlaylistWithEncryption(content, baseUrl));
+
+        } catch (Exception e) {
+            log.error("Failed to parse media playlist info: {}", e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -219,6 +254,55 @@ public class HlsParserService {
         return HlsPlaylist.builder()
                 .type(PlaylistType.MEDIA)
                 .segments(segments)
+                .baseUrl(baseUrl)
+                .build();
+    }
+
+    private MediaPlaylistInfo parseMediaPlaylistWithEncryption(String content, String baseUrl) {
+        List<String> segments = new ArrayList<>();
+        EncryptionInfo encryption = null;
+        String[] lines = content.split("\n");
+
+        // Patterns for parsing encryption info
+        Pattern keyMethodPattern = Pattern.compile("METHOD=([^,]+)");
+        Pattern keyUriPattern = Pattern.compile("URI=\"([^\"]+)\"");
+        Pattern keyIvPattern = Pattern.compile("IV=0x([0-9A-Fa-f]+)");
+
+        for (String line : lines) {
+            line = line.trim();
+
+            // Parse encryption key
+            if (line.startsWith("#EXT-X-KEY:")) {
+                Matcher methodMatcher = keyMethodPattern.matcher(line);
+                Matcher uriMatcher = keyUriPattern.matcher(line);
+                Matcher ivMatcher = keyIvPattern.matcher(line);
+
+                String method = methodMatcher.find() ? methodMatcher.group(1) : null;
+                String uri = uriMatcher.find() ? resolveUrl(baseUrl, uriMatcher.group(1)) : null;
+                String iv = ivMatcher.find() ? ivMatcher.group(1) : null;
+
+                if (method != null && !method.equals("NONE")) {
+                    encryption = EncryptionInfo.builder()
+                            .method(method)
+                            .uri(uri)
+                            .iv(iv)
+                            .build();
+                    log.info("Found encryption: method={}, uri={}, iv={}", method, uri != null, iv != null);
+                }
+            }
+
+            // Parse segment URLs
+            if (!line.isEmpty() && !line.startsWith("#")) {
+                String segmentUrl = resolveUrl(baseUrl, line);
+                segments.add(segmentUrl);
+            }
+        }
+
+        log.info("Parsed media playlist: {} segments, encrypted={}", segments.size(), encryption != null);
+
+        return MediaPlaylistInfo.builder()
+                .segments(segments)
+                .encryption(encryption)
                 .baseUrl(baseUrl)
                 .build();
     }

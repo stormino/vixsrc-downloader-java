@@ -9,6 +9,9 @@ import okhttp3.Request;
 import okhttp3.Response;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -43,8 +46,8 @@ public class HlsSegmentDownloader {
         private int downloadedSegments;
         private double percentage;
         private String currentSegment;
-        private long downloadedBytes;
-        private long totalBytes;
+        private Long downloadedBytes;
+        private Long totalBytes;
     }
 
     /**
@@ -56,18 +59,45 @@ public class HlsSegmentDownloader {
             String referer,
             int maxConcurrent,
             Consumer<DownloadProgress> progressCallback) {
+        return downloadSegments(segmentUrls, outputFile, referer, maxConcurrent, null, progressCallback);
+    }
+
+    /**
+     * Download all segments with optional decryption and concatenate to output file
+     */
+    public SegmentDownloadResult downloadSegments(
+            List<String> segmentUrls,
+            Path outputFile,
+            String referer,
+            int maxConcurrent,
+            HlsParserService.EncryptionInfo encryptionInfo,
+            Consumer<DownloadProgress> progressCallback) {
 
         log.info("Starting download of {} segments to {}", segmentUrls.size(), outputFile);
 
         Path tempDir = null;
+        byte[] decryptionKey = null;
         try {
             // Create temp directory for segments
             tempDir = Files.createTempDirectory("hls_segments_");
             log.info("Created temp segment directory: {}", tempDir);
 
+            // Download encryption key if needed
+            if (encryptionInfo != null && encryptionInfo.getUri() != null) {
+                log.info("Downloading encryption key from: {}", encryptionInfo.getUri());
+                decryptionKey = downloadEncryptionKey(encryptionInfo.getUri(), referer);
+                if (decryptionKey == null) {
+                    return SegmentDownloadResult.builder()
+                            .success(false)
+                            .errorMessage("Failed to download encryption key")
+                            .build();
+                }
+                log.info("Successfully downloaded encryption key ({} bytes)", decryptionKey.length);
+            }
+
             // Download segments concurrently
             List<Path> segmentFiles = downloadSegmentsConcurrently(
-                    segmentUrls, tempDir, referer, maxConcurrent, progressCallback);
+                    segmentUrls, tempDir, referer, maxConcurrent, encryptionInfo, decryptionKey, progressCallback);
 
             if (segmentFiles.size() != segmentUrls.size()) {
                 return SegmentDownloadResult.builder()
@@ -116,11 +146,15 @@ public class HlsSegmentDownloader {
             Path tempDir,
             String referer,
             int maxConcurrent,
+            HlsParserService.EncryptionInfo encryptionInfo,
+            byte[] decryptionKey,
             Consumer<DownloadProgress> progressCallback) throws InterruptedException, ExecutionException {
 
         ExecutorService executor = Executors.newFixedThreadPool(maxConcurrent);
         AtomicInteger downloadedCount = new AtomicInteger(0);
         AtomicInteger failedCount = new AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicLong totalDownloadedBytes = new java.util.concurrent.atomic.AtomicLong(0);
+        long startTime = System.currentTimeMillis();
 
         List<CompletableFuture<Path>> futures = new ArrayList<>();
 
@@ -131,18 +165,61 @@ public class HlsSegmentDownloader {
 
             CompletableFuture<Path> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    downloadSegment(segmentUrl, segmentFile, referer);
+                    // Download segment
+                    byte[] encryptedData = downloadSegmentData(segmentUrl, referer);
+
+                    // Decrypt if needed
+                    byte[] data;
+                    if (decryptionKey != null && encryptionInfo != null) {
+                        data = decryptSegment(encryptedData, decryptionKey, encryptionInfo, segmentIndex);
+                    } else {
+                        data = encryptedData;
+                    }
+
+                    // Write to file
+                    Files.write(segmentFile, data);
 
                     int downloaded = downloadedCount.incrementAndGet();
+                    long bytesDownloaded = totalDownloadedBytes.addAndGet(data.length);
+
+                    // Calculate speed and ETA
+                    long elapsedMillis = System.currentTimeMillis() - startTime;
+                    long elapsedSeconds = Math.max(1, elapsedMillis / 1000); // Avoid division by zero
+
+                    Long estimatedTotalBytes = null;
+                    Long etaSeconds = null;
+                    String downloadSpeed = null;
+
+                    if (downloaded > 0) {
+                        // Estimate total size based on average segment size
+                        long averageSegmentSize = bytesDownloaded / downloaded;
+                        estimatedTotalBytes = averageSegmentSize * segmentUrls.size();
+
+                        // Calculate speed
+                        double bytesPerSecond = (double) bytesDownloaded / elapsedSeconds;
+                        downloadSpeed = formatSpeed(bytesPerSecond);
+
+                        // Calculate ETA
+                        long remainingBytes = estimatedTotalBytes - bytesDownloaded;
+                        if (bytesPerSecond > 0 && remainingBytes > 0) {
+                            etaSeconds = (long) (remainingBytes / bytesPerSecond);
+                        }
+                    }
 
                     // Report progress
                     if (progressCallback != null) {
+                        // Cap percentage at 100% to handle any threading edge cases
+                        double percentage = Math.min(100.0, (downloaded * 100.0) / segmentUrls.size());
+
                         DownloadProgress progress = DownloadProgress.builder()
                                 .totalSegments(segmentUrls.size())
                                 .downloadedSegments(downloaded)
-                                .percentage((downloaded * 100.0) / segmentUrls.size())
+                                .percentage(percentage)
                                 .currentSegment(String.format("Segment %d/%d", downloaded, segmentUrls.size()))
+                                .downloadedBytes(bytesDownloaded)
+                                .totalBytes(estimatedTotalBytes)
                                 .build();
+
                         progressCallback.accept(progress);
                     }
 
@@ -178,27 +255,104 @@ public class HlsSegmentDownloader {
         return segmentFiles;
     }
 
-    private void downloadSegment(String url, Path outputFile, String referer) throws IOException {
-        Request.Builder requestBuilder = new Request.Builder()
-                .url(url)
-                .addHeader("Accept", "*/*");
+    private byte[] downloadSegmentData(String url, String referer) throws IOException {
+        int maxRetries = 5;
+        int retryDelayMs = 500;
 
-        if (referer != null) {
-            requestBuilder.addHeader("Referer", referer);
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                Request.Builder requestBuilder = new Request.Builder()
+                        .url(url)
+                        .addHeader("Accept", "*/*");
+
+                if (referer != null) {
+                    requestBuilder.addHeader("Referer", referer);
+                }
+
+                try (Response response = httpClient.newCall(requestBuilder.build()).execute()) {
+                    if (response.isSuccessful()) {
+                        return response.body().bytes();
+                    }
+
+                    int code = response.code();
+
+                    // Retry on server errors (5xx) and rate limiting (429)
+                    if (attempt < maxRetries && (code == 429 || code == 503 || code >= 500)) {
+                        long delay = retryDelayMs * (long) Math.pow(2, attempt); // Exponential backoff
+                        log.debug("HTTP {} for segment, retrying in {}ms (attempt {}/{})", code, delay, attempt + 1, maxRetries);
+                        try {
+                            Thread.sleep(delay);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("Download interrupted");
+                        }
+                        continue;
+                    }
+
+                    throw new IOException("HTTP " + code);
+                }
+            } catch (IOException e) {
+                if (attempt < maxRetries && (e.getMessage().contains("timeout") || e.getMessage().contains("reset"))) {
+                    long delay = retryDelayMs * (long) Math.pow(2, attempt);
+                    log.debug("Network error for segment: {}, retrying in {}ms (attempt {}/{})",
+                            e.getMessage(), delay, attempt + 1, maxRetries);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Download interrupted");
+                    }
+                    continue;
+                }
+                throw e;
+            }
         }
 
-        try (Response response = httpClient.newCall(requestBuilder.build()).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("HTTP " + response.code());
+        throw new IOException("Failed after " + maxRetries + " retries");
+    }
+
+    private byte[] downloadEncryptionKey(String keyUrl, String referer) {
+        try {
+            return downloadSegmentData(keyUrl, referer);
+        } catch (IOException e) {
+            log.error("Failed to download encryption key: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private byte[] decryptSegment(byte[] encryptedData, byte[] key, HlsParserService.EncryptionInfo encryptionInfo, int segmentIndex) {
+        try {
+            if (!"AES-128".equals(encryptionInfo.getMethod())) {
+                log.warn("Unsupported encryption method: {}", encryptionInfo.getMethod());
+                return encryptedData;
             }
 
-            try (OutputStream out = Files.newOutputStream(outputFile)) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = response.body().byteStream().read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
+            // Prepare IV
+            byte[] iv = new byte[16];
+            if (encryptionInfo.getIv() != null) {
+                // Use explicit IV from playlist
+                String ivHex = encryptionInfo.getIv();
+                for (int i = 0; i < 16 && i < ivHex.length() / 2; i++) {
+                    iv[i] = (byte) Integer.parseInt(ivHex.substring(i * 2, i * 2 + 2), 16);
+                }
+            } else {
+                // Use segment index as IV (big-endian)
+                for (int i = 0; i < 4; i++) {
+                    iv[15 - i] = (byte) (segmentIndex >> (i * 8));
                 }
             }
+
+            // Decrypt using AES-128-CBC
+            SecretKeySpec secretKey = new SecretKeySpec(key, "AES");
+            IvParameterSpec ivSpec = new IvParameterSpec(iv);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+
+            return cipher.doFinal(encryptedData);
+
+        } catch (Exception e) {
+            log.error("Failed to decrypt segment {}: {}", segmentIndex, e.getMessage());
+            return encryptedData;  // Return encrypted data as fallback
         }
     }
 
@@ -227,6 +381,18 @@ public class HlsSegmentDownloader {
             Files.deleteIfExists(tempDir);
         } catch (IOException e) {
             log.warn("Failed to delete temp directory: {}", tempDir);
+        }
+    }
+
+    private String formatSpeed(double bytesPerSecond) {
+        if (bytesPerSecond >= 1_000_000_000) {
+            return String.format("%.2f GB/s", bytesPerSecond / 1_000_000_000);
+        } else if (bytesPerSecond >= 1_000_000) {
+            return String.format("%.2f MB/s", bytesPerSecond / 1_000_000);
+        } else if (bytesPerSecond >= 1_000) {
+            return String.format("%.2f KB/s", bytesPerSecond / 1_000);
+        } else {
+            return String.format("%.0f B/s", bytesPerSecond);
         }
     }
 }
