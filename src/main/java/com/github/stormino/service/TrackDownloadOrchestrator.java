@@ -271,6 +271,8 @@ public class TrackDownloadOrchestrator {
                 subTask.setStatus(DownloadStatus.COMPLETED);
                 subTask.setProgress(100.0);
                 subTask.setCompletedAt(LocalDateTime.now());
+                subTask.setDownloadSpeed(null);
+                subTask.setEtaSeconds(null);
                 broadcastSubTaskUpdate(task, subTask);
                 log.info("Completed download for: {}", subTask.getDisplayName());
                 return true;
@@ -469,6 +471,10 @@ public class TrackDownloadOrchestrator {
                 .taskId(task.getId())
                 .status(task.getStatus())
                 .progress(task.getProgress())
+                .downloadedBytes(task.getAggregatedDownloadedBytes())
+                .totalBytes(task.getAggregatedTotalBytes())
+                .downloadSpeed(task.getAggregatedDownloadSpeed())
+                .etaSeconds(task.getAggregatedEtaSeconds())
                 .message(task.getErrorMessage())
                 .build();
         progressBroadcast.broadcastProgress(update);
@@ -480,6 +486,10 @@ public class TrackDownloadOrchestrator {
                 .subTaskId(subTask.getId())
                 .status(subTask.getStatus())
                 .progress(subTask.getProgress())
+                .downloadedBytes(subTask.getDownloadedBytes())
+                .totalBytes(subTask.getTotalBytes())
+                .downloadSpeed(subTask.getDownloadSpeed())
+                .etaSeconds(subTask.getEtaSeconds())
                 .message(subTask.getErrorMessage())
                 .build();
         progressBroadcast.broadcastProgress(update);

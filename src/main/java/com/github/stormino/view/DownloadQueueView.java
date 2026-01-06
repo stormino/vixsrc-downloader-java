@@ -82,6 +82,10 @@ public class DownloadQueueView extends VerticalLayout {
                 .setHeader("Progress")
                 .setWidth("200px");
 
+        treeGrid.addColumn(this::getItemSize)
+                .setHeader("Downloaded")
+                .setWidth("120px");
+
         treeGrid.addColumn(this::getItemSpeed)
                 .setHeader("Speed")
                 .setWidth("120px");
@@ -145,6 +149,13 @@ public class DownloadQueueView extends VerticalLayout {
                             }
                             if (update.getStatus() != null) {
                                 subTask.setStatus(update.getStatus());
+                                // Clear speed/ETA on terminal states
+                                if (update.getStatus() == DownloadStatus.COMPLETED ||
+                                    update.getStatus() == DownloadStatus.FAILED ||
+                                    update.getStatus() == DownloadStatus.CANCELLED) {
+                                    subTask.setDownloadSpeed(null);
+                                    subTask.setEtaSeconds(null);
+                                }
                             }
                             if (update.getDownloadSpeed() != null) {
                                 subTask.setDownloadSpeed(update.getDownloadSpeed());
@@ -171,6 +182,13 @@ public class DownloadQueueView extends VerticalLayout {
                 }
                 if (update.getStatus() != null) {
                     task.setStatus(update.getStatus());
+                    // Clear speed/ETA on terminal states
+                    if (update.getStatus() == DownloadStatus.COMPLETED ||
+                        update.getStatus() == DownloadStatus.FAILED ||
+                        update.getStatus() == DownloadStatus.CANCELLED) {
+                        task.setDownloadSpeed(null);
+                        task.setEtaSeconds(null);
+                    }
                 }
                 if (update.getDownloadSpeed() != null) {
                     task.setDownloadSpeed(update.getDownloadSpeed());
@@ -222,6 +240,34 @@ public class DownloadQueueView extends VerticalLayout {
             return item.getTask().getDisplayName();
         } else {
             return item.getSubTask().getDisplayName();
+        }
+    }
+
+    private String getItemSize(DownloadItem item) {
+        Long downloaded;
+
+        if (item.isParent()) {
+            downloaded = item.getTask().getAggregatedDownloadedBytes();
+        } else {
+            downloaded = item.getSubTask().getDownloadedBytes();
+        }
+
+        if (downloaded == null || downloaded == 0) {
+            return "";
+        }
+
+        return formatBytes(downloaded);
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes >= 1_000_000_000) {
+            return String.format("%.2f GB", bytes / 1_000_000_000.0);
+        } else if (bytes >= 1_000_000) {
+            return String.format("%.2f MB", bytes / 1_000_000.0);
+        } else if (bytes >= 1_000) {
+            return String.format("%.2f KB", bytes / 1_000.0);
+        } else {
+            return bytes + " B";
         }
     }
 

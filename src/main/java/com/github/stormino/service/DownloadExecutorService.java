@@ -73,6 +73,9 @@ public class DownloadExecutorService {
             runningProcesses.put(processKey, process);
 
             // Read output and parse progress (use ffmpeg parser for track downloads)
+            Long lastDownloadedBytes = null;
+            Long lastTotalBytes = null;
+
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
 
@@ -86,6 +89,15 @@ public class DownloadExecutorService {
                         // Add subTaskId to update
                         update.setSubTaskId(subTaskId);
                         progressCallback.accept(update);
+
+                        // Track last known sizes
+                        if (update.getDownloadedBytes() != null) {
+                            lastDownloadedBytes = update.getDownloadedBytes();
+                        }
+                        if (update.getTotalBytes() != null) {
+                            lastTotalBytes = update.getTotalBytes();
+                        }
+
                         log.debug("Progress update: {}% downloaded={} total={} speed={} eta={}s",
                                 update.getProgress(), update.getDownloadedBytes(), update.getTotalBytes(),
                                 update.getDownloadSpeed(), update.getEtaSeconds());
@@ -109,6 +121,10 @@ public class DownloadExecutorService {
                         .subTaskId(subTaskId)
                         .status(DownloadStatus.COMPLETED)
                         .progress(100.0)
+                        .downloadedBytes(lastTotalBytes != null ? lastTotalBytes : lastDownloadedBytes)
+                        .totalBytes(lastTotalBytes)
+                        .downloadSpeed(null)
+                        .etaSeconds(null)
                         .build());
                 return true;
             }
@@ -154,6 +170,9 @@ public class DownloadExecutorService {
 
             // Read output and parse progress
             StringBuilder errorOutput = new StringBuilder();
+            Long lastDownloadedBytes = null;
+            Long lastTotalBytes = null;
+
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
 
@@ -170,6 +189,15 @@ public class DownloadExecutorService {
                         // Override status to MERGING
                         update.setStatus(DownloadStatus.MERGING);
                         progressCallback.accept(update);
+
+                        // Track last known sizes
+                        if (update.getDownloadedBytes() != null) {
+                            lastDownloadedBytes = update.getDownloadedBytes();
+                        }
+                        if (update.getTotalBytes() != null) {
+                            lastTotalBytes = update.getTotalBytes();
+                        }
+
                         log.debug("Merge progress update: {}% downloaded={} total={} speed={} eta={}s",
                                 update.getProgress(), update.getDownloadedBytes(), update.getTotalBytes(),
                                 update.getDownloadSpeed(), update.getEtaSeconds());
@@ -192,6 +220,10 @@ public class DownloadExecutorService {
                         .taskId(taskId)
                         .status(DownloadStatus.COMPLETED)
                         .progress(100.0)
+                        .downloadedBytes(lastTotalBytes != null ? lastTotalBytes : lastDownloadedBytes)
+                        .totalBytes(lastTotalBytes)
+                        .downloadSpeed(null)
+                        .etaSeconds(null)
                         .message("Merge completed")
                         .build());
                 return true;
@@ -290,8 +322,10 @@ public class DownloadExecutorService {
 
                     // If we have duration and current time, estimate total size and calculate ETA
                     if (totalDuration != null && currentTime != null && currentTime > 0) {
-                        // Estimate total size based on current progress
-                        totalSize = (long) ((currentSizeBytes / currentTime) * totalDuration);
+                        // Estimate total size only once (when not yet set)
+                        if (totalSize == null) {
+                            totalSize = (long) ((currentSizeBytes / currentTime) * totalDuration);
+                        }
                         long remainingBytes = totalSize - currentSizeBytes;
 
                         if (remainingBytes > 0 && bytesPerSecond > 0) {

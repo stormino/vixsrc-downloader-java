@@ -117,6 +117,10 @@ public class DownloadQueueService {
                     .taskId(taskId)
                     .status(DownloadStatus.CANCELLED)
                     .progress(task.getProgress())
+                    .downloadedBytes(task.getAggregatedDownloadedBytes())
+                    .totalBytes(task.getAggregatedTotalBytes())
+                    .downloadSpeed(null)
+                    .etaSeconds(null)
                     .message("Download cancelled by user")
                     .build());
 
@@ -191,8 +195,12 @@ public class DownloadQueueService {
 
         if (success) {
             task.setCompletedAt(LocalDateTime.now());
+            task.setDownloadSpeed(null);
+            task.setEtaSeconds(null);
             updateTaskStatus(task, DownloadStatus.COMPLETED, 100.0, "Download completed");
         } else {
+            task.setDownloadSpeed(null);
+            task.setEtaSeconds(null);
             updateTaskStatus(task, DownloadStatus.FAILED, task.getProgress(),
                     task.getErrorMessage() != null ? task.getErrorMessage() : "Download failed");
         }
@@ -201,14 +209,18 @@ public class DownloadQueueService {
     private void updateTaskStatus(DownloadTask task, DownloadStatus status, Double progress, String message) {
         task.setStatus(status);
         task.setProgress(progress);
-        
+
         ProgressUpdate update = ProgressUpdate.builder()
                 .taskId(task.getId())
                 .status(status)
                 .progress(progress)
+                .downloadedBytes(task.getAggregatedDownloadedBytes())
+                .totalBytes(task.getAggregatedTotalBytes())
+                .downloadSpeed(task.getAggregatedDownloadSpeed())
+                .etaSeconds(task.getAggregatedEtaSeconds())
                 .message(message)
                 .build();
-        
+
         progressBroadcast.broadcastProgress(update);
     }
     
