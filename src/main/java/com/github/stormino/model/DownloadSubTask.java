@@ -16,6 +16,7 @@ public class DownloadSubTask {
     private String parentTaskId;
     private SubTaskType type;
     private String language;  // null for video tracks
+    private String title;  // Human-readable track name (e.g., "English", "Italiano")
 
     // Track metadata
     private String codec;

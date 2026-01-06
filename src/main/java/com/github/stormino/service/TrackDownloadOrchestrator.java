@@ -367,22 +367,42 @@ public class TrackDownloadOrchestrator {
             command.add("mov_text");  // Convert WebVTT to MP4 compatible format
         }
 
-        // Audio language metadata
+        // Audio language and title metadata
         for (int i = 0; i < audioTasks.size(); i++) {
             DownloadSubTask audioTask = audioTasks.get(i);
             if (audioTask.getLanguage() != null) {
                 command.add(String.format("-metadata:s:a:%d", i));
                 command.add(String.format("language=%s", audioTask.getLanguage()));
             }
+            if (audioTask.getTitle() != null) {
+                command.add(String.format("-metadata:s:a:%d", i));
+                command.add(String.format("title=%s", audioTask.getTitle()));
+            }
         }
 
-        // Subtitle language metadata
+        // Subtitle language and title metadata
         for (int i = 0; i < subtitleTasks.size(); i++) {
             DownloadSubTask subtitleTask = subtitleTasks.get(i);
             if (subtitleTask.getLanguage() != null) {
                 command.add(String.format("-metadata:s:s:%d", i));
                 command.add(String.format("language=%s", subtitleTask.getLanguage()));
             }
+            if (subtitleTask.getTitle() != null) {
+                command.add(String.format("-metadata:s:s:%d", i));
+                command.add(String.format("title=%s", subtitleTask.getTitle()));
+            }
+        }
+
+        // Mark first audio track as default
+        if (!audioTasks.isEmpty()) {
+            command.add("-disposition:a:0");
+            command.add("default");
+        }
+
+        // Mark first subtitle track as default
+        if (!subtitleTasks.isEmpty()) {
+            command.add("-disposition:s:0");
+            command.add("default");
         }
 
         command.add("-y");

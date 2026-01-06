@@ -61,6 +61,11 @@ public class AudioTrackDownloadStrategy {
                 log.info("Selected audio track: {}", selectedTrack.getName());
                 audioPlaylistUrl = selectedTrack.getUrl();
 
+                // Set track title for metadata
+                if (selectedTrack.getName() != null && subTask != null) {
+                    subTask.setTitle(selectedTrack.getName());
+                }
+
             } else {
                 // Already a media playlist - assume it's the right language
                 audioPlaylistUrl = playlistUrl;

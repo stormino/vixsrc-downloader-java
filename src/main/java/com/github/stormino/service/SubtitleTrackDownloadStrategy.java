@@ -63,6 +63,11 @@ public class SubtitleTrackDownloadStrategy {
                 log.info("Selected subtitle track: {}", selectedTrack.getName());
                 subtitlePlaylistUrl = selectedTrack.getUrl();
 
+                // Set track title for metadata
+                if (selectedTrack.getName() != null && subTask != null) {
+                    subTask.setTitle(selectedTrack.getName());
+                }
+
             } else {
                 // Already a media playlist - assume it's the right language
                 subtitlePlaylistUrl = playlistUrl;
