@@ -84,6 +84,10 @@ public class DownloadQueueView extends VerticalLayout {
 
         treeGrid.addColumn(this::getItemSpeed)
                 .setHeader("Speed")
+                .setWidth("120px");
+
+        treeGrid.addColumn(this::getItemEta)
+                .setHeader("ETA")
                 .setWidth("100px");
 
         treeGrid.addColumn(this::getItemCreatedTime)
@@ -142,7 +146,9 @@ public class DownloadQueueView extends VerticalLayout {
                             if (update.getStatus() != null) {
                                 subTask.setStatus(update.getStatus());
                             }
-                            if (update.getBitrate() != null) {
+                            if (update.getDownloadSpeed() != null) {
+                                subTask.setDownloadSpeed(update.getDownloadSpeed());
+                            } else if (update.getBitrate() != null) {
                                 subTask.setDownloadSpeed(update.getBitrate());
                             }
                             if (update.getDownloadedBytes() != null) {
@@ -150,6 +156,9 @@ public class DownloadQueueView extends VerticalLayout {
                             }
                             if (update.getTotalBytes() != null) {
                                 subTask.setTotalBytes(update.getTotalBytes());
+                            }
+                            if (update.getEtaSeconds() != null) {
+                                subTask.setEtaSeconds(update.getEtaSeconds());
                             }
                             if (update.getErrorMessage() != null) {
                                 subTask.setErrorMessage(update.getErrorMessage());
@@ -163,7 +172,9 @@ public class DownloadQueueView extends VerticalLayout {
                 if (update.getStatus() != null) {
                     task.setStatus(update.getStatus());
                 }
-                if (update.getBitrate() != null) {
+                if (update.getDownloadSpeed() != null) {
+                    task.setDownloadSpeed(update.getDownloadSpeed());
+                } else if (update.getBitrate() != null) {
                     task.setBitrate(update.getBitrate());
                 }
                 if (update.getDownloadedBytes() != null) {
@@ -171,6 +182,9 @@ public class DownloadQueueView extends VerticalLayout {
                 }
                 if (update.getTotalBytes() != null) {
                     task.setTotalBytes(update.getTotalBytes());
+                }
+                if (update.getEtaSeconds() != null) {
+                    task.setEtaSeconds(update.getEtaSeconds());
                 }
                 if (update.getErrorMessage() != null) {
                     task.setErrorMessage(update.getErrorMessage());
@@ -213,11 +227,46 @@ public class DownloadQueueView extends VerticalLayout {
 
     private String getItemSpeed(DownloadItem item) {
         if (item.isParent()) {
+            // Use aggregated download speed for parent
+            String speed = item.getTask().getAggregatedDownloadSpeed();
+            if (speed != null) {
+                return speed;
+            }
+            // Fallback to bitrate
             String bitrate = item.getTask().getBitrate();
             return bitrate != null ? bitrate : "";
         } else {
             String speed = item.getSubTask().getDownloadSpeed();
             return speed != null ? speed : "";
+        }
+    }
+
+    private String getItemEta(DownloadItem item) {
+        Long etaSeconds;
+        if (item.isParent()) {
+            etaSeconds = item.getTask().getAggregatedEtaSeconds();
+        } else {
+            etaSeconds = item.getSubTask().getEtaSeconds();
+        }
+
+        if (etaSeconds == null || etaSeconds <= 0) {
+            return "";
+        }
+
+        return formatDuration(etaSeconds);
+    }
+
+    private String formatDuration(long seconds) {
+        if (seconds < 60) {
+            return String.format("%ds", seconds);
+        } else if (seconds < 3600) {
+            long mins = seconds / 60;
+            long secs = seconds % 60;
+            return String.format("%dm %ds", mins, secs);
+        } else {
+            long hours = seconds / 3600;
+            long mins = (seconds % 3600) / 60;
+            return String.format("%dh %dm", hours, mins);
         }
     }
 

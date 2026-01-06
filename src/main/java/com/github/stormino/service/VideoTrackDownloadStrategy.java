@@ -83,7 +83,8 @@ public class VideoTrackDownloadStrategy {
             command.add("ffmpeg");
             command.add("-hide_banner");
             command.add("-loglevel");
-            command.add("warning");
+            command.add("info");  // Changed from warning to info to see progress
+            command.add("-stats");  // Enable statistics output
             command.add("-headers");
             command.add("Referer: " + referer);
             command.add("-i");

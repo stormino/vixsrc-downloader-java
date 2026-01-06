@@ -31,9 +31,10 @@ public class DownloadSubTask {
     @Builder.Default
     private volatile Double progress = 0.0;
 
-    private String downloadSpeed;
+    private String downloadSpeed;  // Human readable: "5.2 MB/s"
     private Long downloadedBytes;
     private Long totalBytes;
+    private Long etaSeconds;  // Estimated time remaining in seconds
 
     private String errorMessage;
 

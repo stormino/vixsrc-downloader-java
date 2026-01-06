@@ -296,7 +296,8 @@ public class TrackDownloadOrchestrator {
         command.add("ffmpeg");
         command.add("-hide_banner");
         command.add("-loglevel");
-        command.add("warning");
+        command.add("info");  // Changed from warning to info to see progress
+        command.add("-stats");  // Enable statistics output
 
         // Find video track
         DownloadSubTask videoTask = subTasks.stream()

@@ -16,9 +16,11 @@ public class ProgressUpdate {
     private String bitrate;
     private Long downloadedBytes;
     private Long totalBytes;
+    private String downloadSpeed;  // Human readable: "5.2 MB/s"
+    private Long etaSeconds;  // Estimated time remaining in seconds
     private String message;
     private String errorMessage;
-    
+
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();
     
@@ -26,10 +28,12 @@ public class ProgressUpdate {
         return ProgressUpdate.builder()
                 .taskId(task.getId())
                 .status(task.getStatus())
-                .progress(task.getProgress())
+                .progress(task.getAggregatedProgress())
                 .bitrate(task.getBitrate())
-                .downloadedBytes(task.getDownloadedBytes())
-                .totalBytes(task.getTotalBytes())
+                .downloadedBytes(task.getAggregatedDownloadedBytes())
+                .totalBytes(task.getAggregatedTotalBytes())
+                .downloadSpeed(task.getAggregatedDownloadSpeed())
+                .etaSeconds(task.getAggregatedEtaSeconds())
                 .errorMessage(task.getErrorMessage())
                 .build();
     }
@@ -51,6 +55,8 @@ public class ProgressUpdate {
                 .bitrate(subTask.getDownloadSpeed())
                 .downloadedBytes(subTask.getDownloadedBytes())
                 .totalBytes(subTask.getTotalBytes())
+                .downloadSpeed(subTask.getDownloadSpeed())
+                .etaSeconds(subTask.getEtaSeconds())
                 .errorMessage(subTask.getErrorMessage())
                 .build();
     }
