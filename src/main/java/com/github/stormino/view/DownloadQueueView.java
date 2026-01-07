@@ -30,7 +30,11 @@ import com.github.stormino.service.ProgressBroadcastService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,7 +54,13 @@ public class DownloadQueueView extends VerticalLayout {
     private static final long THROTTLE_MS = 200; // Max one refresh per task every 200ms
     private final Map<String, Long> lastUpdateTime = new ConcurrentHashMap<>();
     private final Map<String, DownloadItem> itemCache = new ConcurrentHashMap<>();
-    
+
+    // Status bar fields
+    private Span statusCountsSpan;
+    private Span overallSpeedSpan;
+    private long lastStatusBarUpdate = 0;
+    private static final long STATUS_BAR_THROTTLE_MS = 500;
+
     public DownloadQueueView(DownloadQueueService downloadQueueService,
                              ProgressBroadcastService progressBroadcastService) {
         this.downloadQueueService = downloadQueueService;
@@ -62,7 +72,20 @@ public class DownloadQueueView extends VerticalLayout {
         
         // Header
         H2 title = new H2("Download Queue");
-        title.addClassNames(LumoUtility.Margin.Bottom.MEDIUM);
+        title.addClassNames(LumoUtility.Margin.Bottom.NONE);
+
+        // Status spans
+        statusCountsSpan = new Span();
+        statusCountsSpan.addClassNames(LumoUtility.FontSize.SMALL);
+        statusCountsSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        overallSpeedSpan = new Span();
+        overallSpeedSpan.addClassNames(LumoUtility.FontSize.SMALL, LumoUtility.FontWeight.SEMIBOLD);
+        overallSpeedSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        VerticalLayout titleAndStatus = new VerticalLayout(title, statusCountsSpan, overallSpeedSpan);
+        titleAndStatus.setSpacing(false);
+        titleAndStatus.setPadding(false);
 
         Button clearCompletedBtn = new Button("Clear Completed", VaadinIcon.TRASH.create());
         clearCompletedBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
@@ -73,16 +96,17 @@ public class DownloadQueueView extends VerticalLayout {
                         3000, Notification.Position.BOTTOM_END)
                         .addThemeVariants(NotificationVariant.LUMO_CONTRAST);
                 refreshGrid();
+                updateStatusBar();
             } else {
                 Notification.show("No completed downloads to clear",
                         3000, Notification.Position.BOTTOM_END);
             }
         });
 
-        HorizontalLayout header = new HorizontalLayout(title, clearCompletedBtn);
+        HorizontalLayout header = new HorizontalLayout(titleAndStatus, clearCompletedBtn);
         header.setWidthFull();
         header.setDefaultVerticalComponentAlignment(Alignment.CENTER);
-        header.expand(title);
+        header.expand(titleAndStatus);
 
         // TreeGrid
         treeGrid = new TreeGrid<>();
@@ -122,10 +146,104 @@ public class DownloadQueueView extends VerticalLayout {
         treeGrid.setHeight("600px");
 
         add(header, treeGrid);
-        
+
         refreshGrid();
+        updateStatusBar();
     }
-    
+
+    private void updateStatusBar() {
+        updateStatusBar(false);
+    }
+
+    private void updateStatusBar(boolean forceUpdate) {
+        // Throttle updates (unless forced)
+        long now = System.currentTimeMillis();
+        if (!forceUpdate && now - lastStatusBarUpdate < STATUS_BAR_THROTTLE_MS) {
+            return;
+        }
+        lastStatusBarUpdate = now;
+
+        List<DownloadTask> allTasks = downloadQueueService.getAllTasks();
+
+        // Count by status (parent tasks only)
+        long downloading = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.DOWNLOADING).count();
+        long queued = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.QUEUED).count();
+        long extracting = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.EXTRACTING).count();
+        long merging = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.MERGING).count();
+        long completed = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.COMPLETED).count();
+        long failed = allTasks.stream()
+                .filter(t -> t.getStatus() == DownloadStatus.FAILED ||
+                             t.getStatus() == DownloadStatus.CANCELLED ||
+                             t.getStatus() == DownloadStatus.NOT_FOUND).count();
+
+        // Build status text (only show non-zero counts)
+        List<String> parts = new ArrayList<>();
+        long activeCount = downloading + extracting + merging;
+        if (activeCount > 0) {
+            parts.add(activeCount + " active");
+        }
+        if (queued > 0) {
+            parts.add(queued + " queued");
+        }
+        if (completed > 0) {
+            parts.add(completed + " completed");
+        }
+        if (failed > 0) {
+            parts.add(failed + " failed");
+        }
+
+        String statusText = parts.isEmpty() ? "No downloads" : String.join(" • ", parts);
+        statusCountsSpan.setText(statusText);
+
+        // Calculate aggregate speed from active tasks
+        double totalBytesPerSecond = allTasks.stream()
+                .filter(t -> isActiveStatus(t.getStatus()))
+                .mapToDouble(t -> {
+                    String speed = t.getAggregatedDownloadSpeed();
+                    if (speed == null) return 0.0;
+                    return parseSpeed(speed);
+                })
+                .sum();
+
+        String speedText = totalBytesPerSecond > 0
+                ? "Overall speed: " + formatSpeed(totalBytesPerSecond)
+                : "";
+        overallSpeedSpan.setText(speedText);
+    }
+
+    private double parseSpeed(String speedStr) {
+        if (speedStr == null || speedStr.isEmpty()) {
+            return 0.0;
+        }
+        try {
+            // Parse strings like "5.2 MB/s", "1.5 GB/s", "500 KB/s"
+            String[] parts = speedStr.trim().split("\\s+");
+            if (parts.length < 2) return 0.0;
+
+            double value = Double.parseDouble(parts[0]);
+            String unit = parts[1].toUpperCase();
+
+            // Convert to bytes per second
+            if (unit.startsWith("GB")) {
+                return value * 1_000_000_000;
+            } else if (unit.startsWith("MB")) {
+                return value * 1_000_000;
+            } else if (unit.startsWith("KB")) {
+                return value * 1_000;
+            } else {
+                return value; // B/s
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse speed: {}", speedStr, e);
+            return 0.0;
+        }
+    }
+
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
@@ -186,6 +304,7 @@ public class DownloadQueueView extends VerticalLayout {
 
         downloadQueueService.getTask(update.getTaskId()).ifPresent(task -> {
             boolean needsResort = false;
+            boolean statusChanged = false;
 
             if (update.getSubTaskId() != null) {
                 // Sub-task update
@@ -239,8 +358,9 @@ public class DownloadQueueView extends VerticalLayout {
                 }
                 if (update.getStatus() != null) {
                     task.setStatus(update.getStatus());
+                    statusChanged = oldStatus != update.getStatus();
                     // Check if status changed between active/inactive
-                    if (oldStatus != update.getStatus() &&
+                    if (statusChanged &&
                         (isActiveStatus(oldStatus) != isActiveStatus(update.getStatus()))) {
                         needsResort = true;
                     }
@@ -274,6 +394,21 @@ public class DownloadQueueView extends VerticalLayout {
                 }
                 if (update.getErrorMessage() != null) {
                     task.setErrorMessage(update.getErrorMessage());
+                }
+            }
+
+            // Update status bar for any active download activity
+            // (subtask updates contain the actual speed data that gets aggregated)
+            boolean shouldUpdateStatusBar =
+                (update.getStatus() != null && (statusChanged || isTerminalUpdate)) ||
+                isActiveStatus(task.getStatus());
+
+            if (shouldUpdateStatusBar) {
+                UI ui = UI.getCurrent();
+                if (ui != null) {
+                    // Force update on terminal states to ensure immediate status refresh
+                    boolean forceUpdate = isTerminalUpdate;
+                    ui.access(() -> updateStatusBar(forceUpdate));
                 }
             }
 
@@ -359,6 +494,8 @@ public class DownloadQueueView extends VerticalLayout {
         treeGrid.setDataProvider(dataProvider);
 
         // Items collapsed by default (user preference)
+
+        updateStatusBar();
     }
 
     private boolean isActiveStatus(DownloadStatus status) {
@@ -400,6 +537,18 @@ public class DownloadQueueView extends VerticalLayout {
             return String.format("%.2f KB", bytes / 1_000.0);
         } else {
             return bytes + " B";
+        }
+    }
+
+    private String formatSpeed(double bytesPerSecond) {
+        if (bytesPerSecond >= 1_000_000_000) {
+            return String.format("%.2f GB/s", bytesPerSecond / 1_000_000_000);
+        } else if (bytesPerSecond >= 1_000_000) {
+            return String.format("%.2f MB/s", bytesPerSecond / 1_000_000);
+        } else if (bytesPerSecond >= 1_000) {
+            return String.format("%.2f KB/s", bytesPerSecond / 1_000);
+        } else {
+            return String.format("%.0f B/s", bytesPerSecond);
         }
     }
 
