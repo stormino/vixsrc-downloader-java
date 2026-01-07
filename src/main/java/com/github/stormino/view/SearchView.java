@@ -15,6 +15,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.LumoUtility;
+import com.github.stormino.config.VixSrcProperties;
 import com.github.stormino.model.ContentMetadata;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.service.DownloadQueueService;
@@ -34,6 +35,7 @@ public class SearchView extends VerticalLayout {
     private final TmdbMetadataService tmdbService;
     private final DownloadQueueService downloadQueueService;
     private final VixSrcAvailabilityService availabilityService;
+    private final VixSrcProperties properties;
 
     private final TextField searchField;
     private final RadioButtonGroup<String> contentTypeGroup;
@@ -41,10 +43,11 @@ public class SearchView extends VerticalLayout {
     private final Div resultsContainer;
 
     public SearchView(TmdbMetadataService tmdbService, DownloadQueueService downloadQueueService,
-                     VixSrcAvailabilityService availabilityService) {
+                     VixSrcAvailabilityService availabilityService, VixSrcProperties properties) {
         this.tmdbService = tmdbService;
         this.downloadQueueService = downloadQueueService;
         this.availabilityService = availabilityService;
+        this.properties = properties;
         
         setSizeFull();
         setPadding(false);
@@ -182,8 +185,8 @@ public class SearchView extends VerticalLayout {
         SearchResultCard card = new SearchResultCard(
                 content,
                 type,
-                () -> Set.of("en"),
-                () -> "best",
+                () -> Set.of(properties.getDownload().getDefaultLanguage()),
+                () -> properties.getDownload().getDefaultQuality(),
                 this::handleDownload
         );
         resultsContainer.add(card);

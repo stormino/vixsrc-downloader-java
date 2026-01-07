@@ -173,17 +173,22 @@ public class SearchResultCard extends VerticalLayout {
         // Language selector
         MultiSelectComboBox<String> languageSelector = new MultiSelectComboBox<>("Languages");
         languageSelector.setItems("en", "it", "es", "fr", "de", "pt", "ja", "ko", "ru", "zh");
-        languageSelector.setValue(defaultLanguagesSupplier.get());
         languageSelector.setWidthFull();
-        
+
         // Quality selector
         Select<String> qualitySelector = new Select<>();
         qualitySelector.setLabel("Quality");
         qualitySelector.setItems("best", "1080", "720", "worst");
         qualitySelector.setValue(defaultQualitySupplier.get());
         qualitySelector.setWidthFull();
-        
+
         layout.add(languageSelector, qualitySelector);
+
+        // Set default language after adding to layout
+        Set<String> defaultLanguages = defaultLanguagesSupplier.get();
+        if (defaultLanguages != null && !defaultLanguages.isEmpty()) {
+            defaultLanguages.forEach(languageSelector::select);
+        }
         
         // TV-specific: Season/Episode selectors
         if (type == DownloadTask.ContentType.TV) {

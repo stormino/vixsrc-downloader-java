@@ -74,7 +74,7 @@ java -jar target/vixsrc-downloader-1.0.0.jar
 | `PARALLEL_DOWNLOADS` | Max concurrent downloads | `3` |
 | `SEGMENT_CONCURRENCY` | HLS segment download concurrency | `5` |
 | `DEFAULT_QUALITY` | Default quality (best/720/1080) | `best` |
-| `DEFAULT_LANGUAGES` | Default languages (comma-separated) | `en` |
+| `DEFAULT_LANGUAGE` | Default language | `en` |
 | `SERVER_PORT` | Web server port | `8080` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 

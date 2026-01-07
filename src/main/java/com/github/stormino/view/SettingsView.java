@@ -28,7 +28,7 @@ public class SettingsView extends VerticalLayout {
     private final IntegerField parallelDownloadsField;
     private final IntegerField segmentConcurrencyField;
     private final TextField defaultQualityField;
-    private final TextField defaultLanguagesField;
+    private final TextField defaultLanguageField;
     
     public SettingsView(VixSrcProperties properties) {
         this.properties = properties;
@@ -102,9 +102,9 @@ public class SettingsView extends VerticalLayout {
         defaultQualityField.setValue(properties.getDownload().getDefaultQuality());
         defaultQualityField.setReadOnly(true);
         
-        defaultLanguagesField = new TextField("Default Languages");
-        defaultLanguagesField.setValue(properties.getDownload().getDefaultLanguages());
-        defaultLanguagesField.setReadOnly(true);
+        defaultLanguageField = new TextField("Default Language");
+        defaultLanguageField.setValue(properties.getDownload().getDefaultLanguage());
+        defaultLanguageField.setReadOnly(true);
         
         Paragraph configNote = new Paragraph(
                 "⚠️ Download configuration is read-only. " +
@@ -123,7 +123,7 @@ public class SettingsView extends VerticalLayout {
                 parallelDownloadsField,
                 segmentConcurrencyField,
                 defaultQualityField,
-                defaultLanguagesField
+                defaultLanguageField
         );
         
         // Extractor Settings

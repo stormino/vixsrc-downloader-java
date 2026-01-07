@@ -37,10 +37,10 @@ public class VixSrcProperties {
         private String defaultQuality = "best";
 
         @NotBlank
-        private String defaultLanguages = "en";
+        private String defaultLanguage = "en";
 
         public List<String> getDefaultLanguageList() {
-            return List.of(defaultLanguages.split(","));
+            return List.of(defaultLanguage);
         }
     }
     

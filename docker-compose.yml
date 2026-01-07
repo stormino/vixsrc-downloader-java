@@ -11,7 +11,7 @@ services:
       - PARALLEL_DOWNLOADS=3
       - SEGMENT_CONCURRENCY=5
       - DEFAULT_QUALITY=best
-      - DEFAULT_LANGUAGES=en
+      - DEFAULT_LANGUAGE=en
       - LOG_LEVEL=INFO
     volumes:
       - ./downloads:/downloads

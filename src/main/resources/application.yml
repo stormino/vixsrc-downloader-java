@@ -5,7 +5,7 @@ vixsrc:
     parallel-downloads: ${PARALLEL_DOWNLOADS:10}
     segment-concurrency: ${SEGMENT_CONCURRENCY:5}
     default-quality: ${DEFAULT_QUALITY:best}
-    default-languages: ${DEFAULT_LANGUAGES:en}
+    default-language: ${DEFAULT_LANGUAGE:en}
     
   tmdb:
     api-key: ${TMDB_API_KEY:}
