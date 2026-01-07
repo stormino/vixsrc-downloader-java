@@ -351,6 +351,24 @@ public class DownloadQueueService {
         }
         return false;
     }
+
+    /**
+     * Clear all tasks in final states (COMPLETED, FAILED, CANCELLED, NOT_FOUND)
+     */
+    public int clearCompletedTasks() {
+        List<String> toRemove = tasks.values().stream()
+                .filter(task -> task.getStatus() == DownloadStatus.COMPLETED ||
+                               task.getStatus() == DownloadStatus.FAILED ||
+                               task.getStatus() == DownloadStatus.CANCELLED ||
+                               task.getStatus() == DownloadStatus.NOT_FOUND)
+                .map(DownloadTask::getId)
+                .toList();
+
+        toRemove.forEach(tasks::remove);
+        log.info("Cleared {} completed tasks", toRemove.size());
+
+        return toRemove.size();
+    }
     
     /**
      * Process download queue - triggers async task processing

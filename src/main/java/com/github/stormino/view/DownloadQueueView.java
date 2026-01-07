@@ -63,11 +63,23 @@ public class DownloadQueueView extends VerticalLayout {
         // Header
         H2 title = new H2("Download Queue");
         title.addClassNames(LumoUtility.Margin.Bottom.MEDIUM);
-        
-        Button refreshBtn = new Button("Refresh", VaadinIcon.REFRESH.create());
-        refreshBtn.addClickListener(e -> refreshGrid());
-        
-        HorizontalLayout header = new HorizontalLayout(title, refreshBtn);
+
+        Button clearCompletedBtn = new Button("Clear Completed", VaadinIcon.TRASH.create());
+        clearCompletedBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        clearCompletedBtn.addClickListener(e -> {
+            int cleared = downloadQueueService.clearCompletedTasks();
+            if (cleared > 0) {
+                Notification.show(cleared + " completed download" + (cleared > 1 ? "s" : "") + " cleared",
+                        3000, Notification.Position.BOTTOM_END)
+                        .addThemeVariants(NotificationVariant.LUMO_CONTRAST);
+                refreshGrid();
+            } else {
+                Notification.show("No completed downloads to clear",
+                        3000, Notification.Position.BOTTOM_END);
+            }
+        });
+
+        HorizontalLayout header = new HorizontalLayout(title, clearCompletedBtn);
         header.setWidthFull();
         header.setDefaultVerticalComponentAlignment(Alignment.CENTER);
         header.expand(title);
