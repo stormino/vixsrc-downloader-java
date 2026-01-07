@@ -7,7 +7,8 @@ public enum DownloadStatus {
     MERGING("Merging tracks"),
     COMPLETED("Completed"),
     FAILED("Failed"),
-    CANCELLED("Cancelled");
+    CANCELLED("Cancelled"),
+    NOT_FOUND("Not Found");
     
     private final String displayName;
     

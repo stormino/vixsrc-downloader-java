@@ -55,7 +55,9 @@ public class AudioTrackDownloadStrategy {
                         playlist.getAudioTracks(), language);
 
                 if (selectedTrack == null) {
-                    log.error("No audio track found for language: {}", language);
+                    log.info("No audio track found for language: {} (may be embedded in video)", language);
+                    subTask.setStatus(DownloadStatus.NOT_FOUND);
+                    subTask.setErrorMessage("Track not available for this language");
                     return false;
                 }
 

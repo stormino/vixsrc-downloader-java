@@ -97,13 +97,16 @@ public class DownloadTask {
         }
 
         // Only use subtasks with size information for accurate progress
+        // Exclude NOT_FOUND tracks as they don't contribute to download progress
         List<DownloadSubTask> trackedSubTasks = subTasks.stream()
+                .filter(st -> st.getStatus() != DownloadStatus.NOT_FOUND)
                 .filter(st -> st.getTotalBytes() != null && st.getTotalBytes() > 0)
                 .toList();
 
         if (trackedSubTasks.isEmpty()) {
             // No size info yet - only use progress from actively downloading subtasks
             List<DownloadSubTask> activeSubTasks = subTasks.stream()
+                    .filter(st -> st.getStatus() != DownloadStatus.NOT_FOUND)
                     .filter(st -> st.getStatus() == DownloadStatus.DOWNLOADING)
                     .toList();
 
@@ -134,7 +137,9 @@ public class DownloadTask {
 
     public boolean allSubTasksCompleted() {
         return !subTasks.isEmpty() &&
-                subTasks.stream().allMatch(st -> st.getStatus() == DownloadStatus.COMPLETED);
+                subTasks.stream().allMatch(st ->
+                    st.getStatus() == DownloadStatus.COMPLETED ||
+                    st.getStatus() == DownloadStatus.NOT_FOUND);
     }
 
     public boolean anySubTaskFailed() {
@@ -146,7 +151,9 @@ public class DownloadTask {
             return totalBytes;
         }
 
+        // Exclude NOT_FOUND tracks from byte calculations
         long total = subTasks.stream()
+                .filter(st -> st.getStatus() != DownloadStatus.NOT_FOUND)
                 .mapToLong(st -> st.getTotalBytes() != null ? st.getTotalBytes() : 0L)
                 .sum();
 
@@ -158,7 +165,9 @@ public class DownloadTask {
             return downloadedBytes;
         }
 
+        // Exclude NOT_FOUND tracks from byte calculations
         long downloaded = subTasks.stream()
+                .filter(st -> st.getStatus() != DownloadStatus.NOT_FOUND)
                 .mapToLong(st -> st.getDownloadedBytes() != null ? st.getDownloadedBytes() : 0L)
                 .sum();
 

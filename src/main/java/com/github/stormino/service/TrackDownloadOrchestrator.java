@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -89,6 +90,11 @@ public class TrackDownloadOrchestrator {
                     .filter(st -> st.getStatus() == DownloadStatus.COMPLETED)
                     .count();
 
+            long failedAudioTracks = subTasks.stream()
+                    .filter(st -> st.getType() == DownloadSubTask.SubTaskType.AUDIO)
+                    .filter(st -> st.getStatus() == DownloadStatus.FAILED)
+                    .count();
+
             if (videoFailed) {
                 log.error("Video track download failed");
                 task.setErrorMessage("Video track failed to download");
@@ -97,12 +103,18 @@ public class TrackDownloadOrchestrator {
                 return false;
             }
 
-            if (successfulAudioTracks == 0) {
+            // Only fail if audio tracks actually failed (not just not found)
+            // If all audio tracks are NOT_FOUND, assume audio is embedded in video
+            if (successfulAudioTracks == 0 && failedAudioTracks > 0) {
                 log.error("All audio track downloads failed");
                 task.setErrorMessage("No audio tracks downloaded successfully");
                 task.setStatus(DownloadStatus.FAILED);
                 broadcastParentUpdate(task);
                 return false;
+            }
+
+            if (successfulAudioTracks == 0) {
+                log.info("No separate audio tracks available (audio may be embedded in video)");
             }
 
             // Log subtitle failures (non-critical)
@@ -287,10 +299,14 @@ public class TrackDownloadOrchestrator {
                 log.info("Completed download for: {}", subTask.getDisplayName());
                 return true;
             } else {
-                subTask.setStatus(DownloadStatus.FAILED);
-                subTask.setErrorMessage("Download failed");
+                // Don't overwrite NOT_FOUND status - it was already set by the strategy
+                if (subTask.getStatus() != DownloadStatus.NOT_FOUND) {
+                    subTask.setStatus(DownloadStatus.FAILED);
+                    subTask.setErrorMessage("Download failed");
+                }
                 broadcastSubTaskUpdate(task, subTask);
-                log.error("Failed download for: {}", subTask.getDisplayName());
+                log.info("Download not successful for: {} (status: {})",
+                        subTask.getDisplayName(), subTask.getStatus());
                 return false;
             }
 
@@ -334,6 +350,7 @@ public class TrackDownloadOrchestrator {
                 .filter(st -> st.getStatus() == DownloadStatus.COMPLETED)
                 .toList();
 
+        log.info("Found {} completed audio tracks for merging", audioTasks.size());
         for (DownloadSubTask audioTask : audioTasks) {
             command.add("-i");
             command.add(audioTask.getTempFilePath());
@@ -345,19 +362,45 @@ public class TrackDownloadOrchestrator {
                 .filter(st -> st.getStatus() == DownloadStatus.COMPLETED)
                 .toList();
 
+        log.info("Found {} completed subtitle tracks for merging", subtitleTasks.size());
         for (DownloadSubTask subtitleTask : subtitleTasks) {
             command.add("-i");
             command.add(subtitleTask.getTempFilePath());
+        }
+
+        // If no audio tracks and no subtitles, just copy the video file
+        if (audioTasks.isEmpty() && subtitleTasks.isEmpty()) {
+            log.info("No separate audio or subtitle tracks - copying video file directly");
+            try {
+                java.nio.file.Files.copy(
+                        java.nio.file.Paths.get(videoTask.getTempFilePath()),
+                        java.nio.file.Paths.get(task.getOutputPath()),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                );
+                return true;
+            } catch (IOException e) {
+                log.error("Failed to copy video file: {}", e.getMessage());
+                task.setErrorMessage("Failed to copy video file: " + e.getMessage());
+                task.setStatus(DownloadStatus.FAILED);
+                broadcastParentUpdate(task);
+                return false;
+            }
         }
 
         // Map video
         command.add("-map");
         command.add("0:v:0");
 
-        // Map all audio
-        for (int i = 1; i <= audioTasks.size(); i++) {
+        // Map video audio (if no separate audio tracks, copy audio from video)
+        if (audioTasks.isEmpty()) {
             command.add("-map");
-            command.add(i + ":a:0");
+            command.add("0:a?");  // ? makes it optional
+        } else {
+            // Map all separate audio tracks
+            for (int i = 1; i <= audioTasks.size(); i++) {
+                command.add("-map");
+                command.add(i + ":a:0");
+            }
         }
 
         // Map all subtitles
@@ -379,16 +422,18 @@ public class TrackDownloadOrchestrator {
             command.add("mov_text");  // Convert WebVTT to MP4 compatible format
         }
 
-        // Audio language and title metadata
-        for (int i = 0; i < audioTasks.size(); i++) {
-            DownloadSubTask audioTask = audioTasks.get(i);
-            if (audioTask.getLanguage() != null) {
-                command.add(String.format("-metadata:s:a:%d", i));
-                command.add(String.format("language=%s", audioTask.getLanguage()));
-            }
-            if (audioTask.getTitle() != null) {
-                command.add(String.format("-metadata:s:a:%d", i));
-                command.add(String.format("title=%s", audioTask.getTitle()));
+        // Audio language and title metadata (only if we have separate audio tracks)
+        if (!audioTasks.isEmpty()) {
+            for (int i = 0; i < audioTasks.size(); i++) {
+                DownloadSubTask audioTask = audioTasks.get(i);
+                if (audioTask.getLanguage() != null) {
+                    command.add(String.format("-metadata:s:a:%d", i));
+                    command.add(String.format("language=%s", audioTask.getLanguage()));
+                }
+                if (audioTask.getTitle() != null) {
+                    command.add(String.format("-metadata:s:a:%d", i));
+                    command.add(String.format("title=%s", audioTask.getTitle()));
+                }
             }
         }
 
@@ -405,7 +450,7 @@ public class TrackDownloadOrchestrator {
             }
         }
 
-        // Mark first audio track as default
+        // Mark first audio track as default (only if we have separate audio tracks)
         if (!audioTasks.isEmpty()) {
             command.add("-disposition:a:0");
             command.add("default");

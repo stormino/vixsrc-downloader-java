@@ -57,6 +57,8 @@ public class SubtitleTrackDownloadStrategy {
 
                 if (selectedTrack == null) {
                     log.info("No subtitle track available for language: {} (skipping)", language);
+                    subTask.setStatus(DownloadStatus.NOT_FOUND);
+                    subTask.setErrorMessage("Track not available for this language");
                     return false;
                 }
 

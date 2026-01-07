@@ -80,6 +80,10 @@ public class DownloadSubTask {
         return status == DownloadStatus.FAILED;
     }
 
+    public boolean isNotFound() {
+        return status == DownloadStatus.NOT_FOUND;
+    }
+
     public boolean isActive() {
         return status == DownloadStatus.DOWNLOADING || status == DownloadStatus.EXTRACTING;
     }

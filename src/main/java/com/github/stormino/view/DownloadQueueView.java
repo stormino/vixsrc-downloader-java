@@ -161,7 +161,8 @@ public class DownloadQueueView extends VerticalLayout {
         // Always allow terminal state updates and status changes
         boolean isTerminalUpdate = update.getStatus() == DownloadStatus.COMPLETED ||
                                    update.getStatus() == DownloadStatus.FAILED ||
-                                   update.getStatus() == DownloadStatus.CANCELLED;
+                                   update.getStatus() == DownloadStatus.CANCELLED ||
+                                   update.getStatus() == DownloadStatus.NOT_FOUND;
 
         if (!isTerminalUpdate && lastUpdate != null && (now - lastUpdate) < THROTTLE_MS) {
             // Still update the data model, but skip UI refresh
@@ -190,7 +191,8 @@ public class DownloadQueueView extends VerticalLayout {
                             // Handle speed/eta: clear for terminal states, update for active states
                             if (subTask.getStatus() == DownloadStatus.COMPLETED ||
                                 subTask.getStatus() == DownloadStatus.FAILED ||
-                                subTask.getStatus() == DownloadStatus.CANCELLED) {
+                                subTask.getStatus() == DownloadStatus.CANCELLED ||
+                                subTask.getStatus() == DownloadStatus.NOT_FOUND) {
                                 // For terminal states, explicitly clear speed/eta regardless of update values
                                 subTask.setDownloadSpeed(null);
                                 subTask.setEtaSeconds(null);
@@ -454,6 +456,7 @@ public class DownloadQueueView extends VerticalLayout {
         switch (status) {
             case COMPLETED -> badge.getElement().getThemeList().add("success");
             case FAILED, CANCELLED -> badge.getElement().getThemeList().add("error");
+            case NOT_FOUND -> badge.getElement().getThemeList().add("warning");
             case DOWNLOADING -> badge.getElement().getThemeList().add("contrast");
             case MERGING -> badge.getElement().getThemeList().add("primary");
             default -> badge.getElement().getThemeList().add("primary");
