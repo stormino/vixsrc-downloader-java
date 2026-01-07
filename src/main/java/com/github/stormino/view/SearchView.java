@@ -3,7 +3,6 @@ package com.github.stormino.view;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
@@ -12,7 +11,6 @@ import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
-import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -42,9 +40,6 @@ public class SearchView extends VerticalLayout {
     private final Button searchButton;
     private final Div resultsContainer;
 
-    private final MultiSelectComboBox<String> languageSelector;
-    private final Select<String> qualitySelector;
-
     public SearchView(TmdbMetadataService tmdbService, DownloadQueueService downloadQueueService,
                      VixSrcAvailabilityService availabilityService) {
         this.tmdbService = tmdbService;
@@ -52,57 +47,49 @@ public class SearchView extends VerticalLayout {
         this.availabilityService = availabilityService;
         
         setSizeFull();
-        setPadding(true);
-        setSpacing(true);
-        
+        setPadding(false);
+        setSpacing(false);
+        getStyle().set("padding", "1rem");
+
         // Header
         H2 title = new H2("Search Movies & TV Shows");
-        title.addClassNames(LumoUtility.Margin.Bottom.MEDIUM);
+        title.addClassNames(LumoUtility.Margin.Top.NONE, LumoUtility.Margin.Bottom.SMALL);
+        title.getStyle().set("font-size", "1.5rem");
         
         // Search controls
         searchField = new TextField();
-        searchField.setPlaceholder("Enter movie or TV show name...");
+        searchField.setPlaceholder("Search movies and TV shows...");
         searchField.setWidthFull();
         searchField.addKeyPressListener(Key.ENTER, e -> performSearch());
-        
+        searchField.getStyle().set("min-width", "200px");
+
         contentTypeGroup = new RadioButtonGroup<>();
-        contentTypeGroup.setLabel("Content Type");
+        contentTypeGroup.setLabel("Type");
         contentTypeGroup.setItems("Movies", "TV Shows", "Both");
         contentTypeGroup.setValue("Both");
-        
+
         searchButton = new Button("Search");
         searchButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         searchButton.addClickListener(e -> performSearch());
-        
+        searchButton.getStyle().set("margin-top", "auto");
+
         HorizontalLayout searchLayout = new HorizontalLayout(searchField, contentTypeGroup, searchButton);
         searchLayout.setWidthFull();
         searchLayout.setDefaultVerticalComponentAlignment(Alignment.END);
+        searchLayout.setSpacing(true);
+        searchLayout.addClassNames(LumoUtility.Gap.SMALL);
+        searchLayout.getStyle().set("flex-wrap", "wrap");
         searchLayout.expand(searchField);
-        
-        // Global settings
-        languageSelector = new MultiSelectComboBox<>("Default Languages");
-        languageSelector.setItems("en", "it", "es", "fr", "de", "pt", "ja", "ko");
-        languageSelector.setValue(Set.of("en"));
-        languageSelector.setWidth("200px");
-        
-        qualitySelector = new Select<>();
-        qualitySelector.setLabel("Default Quality");
-        qualitySelector.setItems("best", "1080", "720", "worst");
-        qualitySelector.setValue("best");
-        qualitySelector.setWidth("150px");
-        
-        HorizontalLayout settingsLayout = new HorizontalLayout(languageSelector, qualitySelector);
-        settingsLayout.addClassNames(LumoUtility.Gap.MEDIUM);
-        
+
         // Results container
         resultsContainer = new Div();
         resultsContainer.addClassNames(
                 LumoUtility.Display.GRID,
-                LumoUtility.Gap.MEDIUM,
-                LumoUtility.Padding.MEDIUM
+                LumoUtility.Gap.SMALL,
+                LumoUtility.Padding.Vertical.SMALL
         );
         resultsContainer.getStyle()
-                .set("grid-template-columns", "repeat(auto-fill, minmax(350px, 1fr))");
+                .set("grid-template-columns", "repeat(auto-fill, minmax(min(100%, 320px), 1fr))");
         
         // Check if TMDB is available
         if (!tmdbService.isAvailable()) {
@@ -118,7 +105,7 @@ public class SearchView extends VerticalLayout {
             add(title, warning);
             searchButton.setEnabled(false);
         } else {
-            add(title, searchLayout, settingsLayout, resultsContainer);
+            add(title, searchLayout, resultsContainer);
         }
     }
     
@@ -135,7 +122,7 @@ public class SearchView extends VerticalLayout {
         searchButton.setEnabled(false);
         searchButton.setText("Searching...");
 
-        Set<String> selectedLanguages = languageSelector.getValue();
+        Set<String> selectedLanguages = Set.of("en");
         String contentType = contentTypeGroup.getValue();
 
         CompletableFuture.runAsync(() -> {
@@ -195,8 +182,8 @@ public class SearchView extends VerticalLayout {
         SearchResultCard card = new SearchResultCard(
                 content,
                 type,
-                () -> languageSelector.getValue(),
-                qualitySelector::getValue,
+                () -> Set.of("en"),
+                () -> "best",
                 this::handleDownload
         );
         resultsContainer.add(card);

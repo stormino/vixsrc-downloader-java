@@ -53,84 +53,112 @@ public class SearchResultCard extends VerticalLayout {
     private void createCard() {
         addClassNames(
                 LumoUtility.BorderRadius.MEDIUM,
-                LumoUtility.Padding.MEDIUM,
+                LumoUtility.Padding.SMALL,
                 LumoUtility.BoxShadow.SMALL
         );
-        setSpacing(true);
+        setSpacing(false);
+        getStyle()
+                .set("gap", "0.5rem")
+                .set("transition", "transform 0.2s ease, box-shadow 0.2s ease")
+                .set("cursor", "default");
 
-        // Set background color based on content type
+        // Set background color based on content type with hover effect
         if (type == DownloadTask.ContentType.MOVIE) {
             getStyle().set("background-color", "#E3F2FD"); // Pastel blue for movies
+            getElement().addEventListener("mouseenter", e ->
+                getStyle().set("box-shadow", "0 4px 12px rgba(33, 150, 243, 0.3)"));
+            getElement().addEventListener("mouseleave", e ->
+                getStyle().set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.12)"));
         } else {
             getStyle().set("background-color", "#FFEBEE"); // Pastel red for TV shows
+            getElement().addEventListener("mouseenter", e ->
+                getStyle().set("box-shadow", "0 4px 12px rgba(244, 67, 54, 0.3)"));
+            getElement().addEventListener("mouseleave", e ->
+                getStyle().set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.12)"));
         }
 
         // Title row
         HorizontalLayout titleRow = new HorizontalLayout();
-        titleRow.setSpacing(true);
-        titleRow.setAlignItems(Alignment.BASELINE);
-        titleRow.addClassNames(LumoUtility.Gap.SMALL);
+        titleRow.setSpacing(false);
+        titleRow.setAlignItems(Alignment.CENTER);
+        titleRow.addClassNames(LumoUtility.Gap.XSMALL);
+        titleRow.setPadding(false);
+        titleRow.getStyle().set("flex-wrap", "wrap");
 
         H3 title = new H3(content.getTitle());
-        title.addClassNames(LumoUtility.Margin.NONE, LumoUtility.FontSize.MEDIUM);
+        title.addClassNames(LumoUtility.Margin.NONE);
+        title.getStyle()
+                .set("font-size", "1.1rem")
+                .set("line-height", "1.3")
+                .set("font-weight", "600");
         titleRow.add(title);
 
-        // TV-specific info next to title
-        if (type == DownloadTask.ContentType.TV) {
-            if (content.getNumberOfSeasons() != null) {
-                Span seasons = new Span("(" + content.getNumberOfSeasons() + " seasons");
-                seasons.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
-                titleRow.add(seasons);
-            }
+        // TV-specific info as badge
+        if (type == DownloadTask.ContentType.TV && content.getNumberOfSeasons() != null) {
+            Span badge = new Span(content.getNumberOfSeasons() + "S");
+            badge.addClassNames(LumoUtility.FontSize.XSMALL, LumoUtility.TextColor.SECONDARY);
+            badge.getStyle()
+                    .set("background", "rgba(0,0,0,0.1)")
+                    .set("padding", "0.15rem 0.4rem")
+                    .set("border-radius", "0.25rem")
+                    .set("font-weight", "500");
+            titleRow.add(badge);
+
             if (content.getTotalEpisodes() != null) {
-                Span episodes = new Span("• " + content.getTotalEpisodes() + " episodes)");
-                episodes.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
-                titleRow.add(episodes);
+                Span epBadge = new Span(content.getTotalEpisodes() + "E");
+                epBadge.addClassNames(LumoUtility.FontSize.XSMALL, LumoUtility.TextColor.SECONDARY);
+                epBadge.getStyle()
+                        .set("background", "rgba(0,0,0,0.1)")
+                        .set("padding", "0.15rem 0.4rem")
+                        .set("border-radius", "0.25rem")
+                        .set("font-weight", "500");
+                titleRow.add(epBadge);
             }
         }
 
-        // First row: Year and Rating
-        HorizontalLayout firstRow = new HorizontalLayout();
-        firstRow.setSpacing(true);
-        firstRow.addClassNames(LumoUtility.Gap.SMALL);
+        // Metadata row: Year, Rating, TMDB ID
+        HorizontalLayout metaRow = new HorizontalLayout();
+        metaRow.setSpacing(false);
+        metaRow.addClassNames(LumoUtility.Gap.SMALL, LumoUtility.FontSize.SMALL);
+        metaRow.setPadding(false);
+        metaRow.getStyle().set("flex-wrap", "wrap");
 
         if (content.getYear() != null) {
             Span year = new Span(content.getYear().toString());
             year.addClassNames(LumoUtility.TextColor.SECONDARY);
-            firstRow.add(year);
+            year.getStyle().set("font-weight", "500");
+            metaRow.add(year);
         }
 
         if (content.getVoteAverage() != null) {
             Span rating = new Span(String.format("⭐ %.1f", content.getVoteAverage()));
-            rating.addClassNames(LumoUtility.TextColor.WARNING);
-            firstRow.add(rating);
+            rating.getStyle().set("color", "#FFA000");
+            metaRow.add(rating);
         }
 
-        // Second row: TMDB ID
-        HorizontalLayout secondRow = new HorizontalLayout();
-        secondRow.setSpacing(true);
-        secondRow.addClassNames(LumoUtility.Gap.SMALL);
-
         if (content.getTmdbId() != null) {
-            Span tmdbId = new Span("TMDB: " + content.getTmdbId());
-            tmdbId.addClassNames(LumoUtility.TextColor.SECONDARY, LumoUtility.FontSize.SMALL);
-            secondRow.add(tmdbId);
+            Span tmdbId = new Span("ID: " + content.getTmdbId());
+            tmdbId.addClassNames(LumoUtility.TextColor.TERTIARY, LumoUtility.FontSize.XSMALL);
+            metaRow.add(tmdbId);
         }
         
         // Overview
         Paragraph overview = new Paragraph(truncateOverview(content.getOverview()));
         overview.addClassNames(
                 LumoUtility.TextColor.SECONDARY,
-                LumoUtility.FontSize.SMALL,
-                LumoUtility.Margin.Vertical.SMALL
+                LumoUtility.FontSize.SMALL
         );
-        
+        overview.getStyle()
+                .set("margin", "0")
+                .set("line-height", "1.4");
+
         // Download button
         Button downloadBtn = new Button("Download", VaadinIcon.DOWNLOAD.create());
-        downloadBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        downloadBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         downloadBtn.addClickListener(e -> openDownloadDialog());
+        downloadBtn.getStyle().set("margin-top", "0.25rem");
 
-        add(titleRow, firstRow, secondRow, overview, downloadBtn);
+        add(titleRow, metaRow, overview, downloadBtn);
     }
     
     private void openDownloadDialog() {
@@ -222,8 +250,8 @@ public class SearchResultCard extends VerticalLayout {
         if (overview == null || overview.isBlank()) {
             return "No overview available.";
         }
-        if (overview.length() > 150) {
-            return overview.substring(0, 147) + "...";
+        if (overview.length() > 120) {
+            return overview.substring(0, 117) + "...";
         }
         return overview;
     }
