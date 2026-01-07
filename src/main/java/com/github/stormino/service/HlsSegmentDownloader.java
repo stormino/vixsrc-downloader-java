@@ -256,7 +256,7 @@ public class HlsSegmentDownloader {
     }
 
     private byte[] downloadSegmentData(String url, String referer) throws IOException {
-        int maxRetries = 5;
+        int maxRetries = Integer.MAX_VALUE;
         int retryDelayMs = 500;
 
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
