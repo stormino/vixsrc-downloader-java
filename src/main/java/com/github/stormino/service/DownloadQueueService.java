@@ -286,6 +286,9 @@ public class DownloadQueueService {
             filename = sanitizeFilename(filename);
 
             String showDir = sanitizeFilename(task.getTitle());
+            if (task.getYear() != null) {
+                showDir = showDir + "." + task.getYear();
+            }
             String seasonDir = String.format("Season %02d", task.getSeason());
 
             try {
@@ -472,9 +475,12 @@ public class DownloadQueueService {
         String outputPath;
         if (task.getContentType() == DownloadTask.ContentType.TV && metadata != null) {
             String showDir = sanitizeFilename(metadata.getTitle());
+            if (metadata.getYear() != null) {
+                showDir = showDir + "." + metadata.getYear();
+            }
             String seasonDir = String.format("Season %02d", task.getSeason());
             outputPath = Paths.get(basePath, showDir, seasonDir, filename).toString();
-            
+
             // Create directories
             try {
                 Files.createDirectories(Paths.get(basePath, showDir, seasonDir));
@@ -482,6 +488,7 @@ public class DownloadQueueService {
                 log.error("Failed to create directories: {}", e.getMessage());
             }
         } else {
+            // Movies go directly in base path
             outputPath = Paths.get(basePath, filename).toString();
         }
         
