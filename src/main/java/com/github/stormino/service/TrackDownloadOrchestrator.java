@@ -133,6 +133,9 @@ public class TrackDownloadOrchestrator {
         task.setStatus(DownloadStatus.COMPLETED);
         task.setProgress(100.0);
         task.setCompletedAt(LocalDateTime.now());
+        task.setDownloadSpeed(null);
+        task.setEtaSeconds(null);
+        task.setBitrate(null);
         broadcastParentUpdate(task);
         log.info("Download completed successfully: {}", task.getDisplayName());
 

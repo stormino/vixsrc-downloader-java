@@ -170,6 +170,11 @@ public class DownloadTask {
             return etaSeconds;
         }
 
+        // Don't show ETA for completed/failed tasks
+        if (status == DownloadStatus.COMPLETED || status == DownloadStatus.FAILED || status == DownloadStatus.CANCELLED) {
+            return null;
+        }
+
         // Calculate ETA based on total remaining bytes and average speed
         Long totalBytesNullable = getAggregatedTotalBytes();
         Long downloadedBytesNullable = getAggregatedDownloadedBytes();
@@ -202,6 +207,11 @@ public class DownloadTask {
     public String getAggregatedDownloadSpeed() {
         if (subTasks.isEmpty()) {
             return downloadSpeed;
+        }
+
+        // Don't show speed for completed/failed tasks
+        if (status == DownloadStatus.COMPLETED || status == DownloadStatus.FAILED || status == DownloadStatus.CANCELLED) {
+            return null;
         }
 
         if (startedAt == null) {

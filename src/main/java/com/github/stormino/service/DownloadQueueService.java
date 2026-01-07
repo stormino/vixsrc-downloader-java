@@ -420,10 +420,12 @@ public class DownloadQueueService {
             task.setCompletedAt(LocalDateTime.now());
             task.setDownloadSpeed(null);
             task.setEtaSeconds(null);
+            task.setBitrate(null);
             updateTaskStatus(task, DownloadStatus.COMPLETED, 100.0, "Download completed");
         } else {
             task.setDownloadSpeed(null);
             task.setEtaSeconds(null);
+            task.setBitrate(null);
             updateTaskStatus(task, DownloadStatus.FAILED, task.getProgress(),
                     task.getErrorMessage() != null ? task.getErrorMessage() : "Download failed");
         }

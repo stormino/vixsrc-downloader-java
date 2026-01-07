@@ -185,27 +185,32 @@ public class DownloadQueueView extends VerticalLayout {
                             }
                             if (update.getStatus() != null) {
                                 subTask.setStatus(update.getStatus());
-                                // Clear speed/ETA on terminal states
-                                if (update.getStatus() == DownloadStatus.COMPLETED ||
-                                    update.getStatus() == DownloadStatus.FAILED ||
-                                    update.getStatus() == DownloadStatus.CANCELLED) {
-                                    subTask.setDownloadSpeed(null);
-                                    subTask.setEtaSeconds(null);
+                            }
+
+                            // Handle speed/eta: clear for terminal states, update for active states
+                            if (subTask.getStatus() == DownloadStatus.COMPLETED ||
+                                subTask.getStatus() == DownloadStatus.FAILED ||
+                                subTask.getStatus() == DownloadStatus.CANCELLED) {
+                                // For terminal states, explicitly clear speed/eta regardless of update values
+                                subTask.setDownloadSpeed(null);
+                                subTask.setEtaSeconds(null);
+                            } else {
+                                // For active states, only update if present in update
+                                if (update.getDownloadSpeed() != null) {
+                                    subTask.setDownloadSpeed(update.getDownloadSpeed());
+                                } else if (update.getBitrate() != null) {
+                                    subTask.setDownloadSpeed(update.getBitrate());
+                                }
+                                if (update.getEtaSeconds() != null) {
+                                    subTask.setEtaSeconds(update.getEtaSeconds());
                                 }
                             }
-                            if (update.getDownloadSpeed() != null) {
-                                subTask.setDownloadSpeed(update.getDownloadSpeed());
-                            } else if (update.getBitrate() != null) {
-                                subTask.setDownloadSpeed(update.getBitrate());
-                            }
+
                             if (update.getDownloadedBytes() != null) {
                                 subTask.setDownloadedBytes(update.getDownloadedBytes());
                             }
                             if (update.getTotalBytes() != null) {
                                 subTask.setTotalBytes(update.getTotalBytes());
-                            }
-                            if (update.getEtaSeconds() != null) {
-                                subTask.setEtaSeconds(update.getEtaSeconds());
                             }
                             if (update.getErrorMessage() != null) {
                                 subTask.setErrorMessage(update.getErrorMessage());
@@ -225,27 +230,33 @@ public class DownloadQueueView extends VerticalLayout {
                         (isActiveStatus(oldStatus) != isActiveStatus(update.getStatus()))) {
                         needsResort = true;
                     }
-                    // Clear speed/ETA on terminal states
-                    if (update.getStatus() == DownloadStatus.COMPLETED ||
-                        update.getStatus() == DownloadStatus.FAILED ||
-                        update.getStatus() == DownloadStatus.CANCELLED) {
-                        task.setDownloadSpeed(null);
-                        task.setEtaSeconds(null);
+                }
+
+                // Handle speed/eta: clear for terminal states, update for active states
+                if (task.getStatus() == DownloadStatus.COMPLETED ||
+                    task.getStatus() == DownloadStatus.FAILED ||
+                    task.getStatus() == DownloadStatus.CANCELLED) {
+                    // For terminal states, explicitly clear speed/eta/bitrate regardless of update values
+                    task.setDownloadSpeed(null);
+                    task.setEtaSeconds(null);
+                    task.setBitrate(null);
+                } else {
+                    // For active states, only update if present in update
+                    if (update.getDownloadSpeed() != null) {
+                        task.setDownloadSpeed(update.getDownloadSpeed());
+                    } else if (update.getBitrate() != null) {
+                        task.setBitrate(update.getBitrate());
+                    }
+                    if (update.getEtaSeconds() != null) {
+                        task.setEtaSeconds(update.getEtaSeconds());
                     }
                 }
-                if (update.getDownloadSpeed() != null) {
-                    task.setDownloadSpeed(update.getDownloadSpeed());
-                } else if (update.getBitrate() != null) {
-                    task.setBitrate(update.getBitrate());
-                }
+
                 if (update.getDownloadedBytes() != null) {
                     task.setDownloadedBytes(update.getDownloadedBytes());
                 }
                 if (update.getTotalBytes() != null) {
                     task.setTotalBytes(update.getTotalBytes());
-                }
-                if (update.getEtaSeconds() != null) {
-                    task.setEtaSeconds(update.getEtaSeconds());
                 }
                 if (update.getErrorMessage() != null) {
                     task.setErrorMessage(update.getErrorMessage());
