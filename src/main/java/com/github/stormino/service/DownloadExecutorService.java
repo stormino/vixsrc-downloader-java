@@ -47,7 +47,7 @@ public class DownloadExecutorService {
                 .forEach(e -> {
                     Process process = e.getValue();
                     if (process.isAlive()) {
-                        log.info("Killing process and descendants for: {}", e.getKey());
+                        log.debug("Killing process and descendants for: {}", e.getKey());
                         process.descendants().forEach(ProcessHandle::destroyForcibly);
                         process.destroyForcibly();
                     }
@@ -62,7 +62,7 @@ public class DownloadExecutorService {
         String processKey = taskId + ":" + subTaskId;
         Process process = null;
         try {
-            log.info("Executing track download: {}", String.join(" ", command));
+            log.debug("Executing track download: {}", String.join(" ", command));
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.redirectErrorStream(true);
@@ -158,7 +158,7 @@ public class DownloadExecutorService {
         String processKey = taskId + ":merge";
         Process process = null;
         try {
-            log.info("Executing merge command: {}", String.join(" ", command));
+            log.debug("Executing merge command: {}", String.join(" ", command));
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.redirectErrorStream(true);

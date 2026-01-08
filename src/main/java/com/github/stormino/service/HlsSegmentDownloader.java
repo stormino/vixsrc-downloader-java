@@ -73,18 +73,18 @@ public class HlsSegmentDownloader {
             HlsParserService.EncryptionInfo encryptionInfo,
             Consumer<DownloadProgress> progressCallback) {
 
-        log.info("Starting download of {} segments to {}", segmentUrls.size(), outputFile);
+        log.debug("Starting download of {} segments to {}", segmentUrls.size(), outputFile);
 
         Path tempDir = null;
         byte[] decryptionKey = null;
         try {
             // Create temp directory for segments
             tempDir = Files.createTempDirectory("hls_segments_");
-            log.info("Created temp segment directory: {}", tempDir);
+            log.debug("Created temp segment directory: {}", tempDir);
 
             // Download encryption key if needed
             if (encryptionInfo != null && encryptionInfo.getUri() != null) {
-                log.info("Downloading encryption key from: {}", encryptionInfo.getUri());
+                log.debug("Downloading encryption key from: {}", encryptionInfo.getUri());
                 decryptionKey = downloadEncryptionKey(encryptionInfo.getUri(), referer);
                 if (decryptionKey == null) {
                     return SegmentDownloadResult.builder()
@@ -92,7 +92,7 @@ public class HlsSegmentDownloader {
                             .errorMessage("Failed to download encryption key")
                             .build();
                 }
-                log.info("Successfully downloaded encryption key ({} bytes)", decryptionKey.length);
+                log.debug("Successfully downloaded encryption key ({} bytes)", decryptionKey.length);
             }
 
             // Download segments concurrently
@@ -114,7 +114,7 @@ public class HlsSegmentDownloader {
             // Cleanup temp files
             cleanupTempFiles(segmentFiles, tempDir);
 
-            log.info("Successfully downloaded and concatenated {} segments", segmentUrls.size());
+            log.debug("Successfully downloaded and concatenated {} segments", segmentUrls.size());
 
             return SegmentDownloadResult.builder()
                     .success(true)
@@ -357,7 +357,7 @@ public class HlsSegmentDownloader {
     }
 
     private void concatenateSegments(List<Path> segmentFiles, Path outputFile) throws IOException {
-        log.info("Concatenating {} segments to {}", segmentFiles.size(), outputFile);
+        log.debug("Concatenating {} segments to {}", segmentFiles.size(), outputFile);
 
         Files.createDirectories(outputFile.getParent());
 

@@ -224,7 +224,7 @@ public class HlsParserService {
             }
         }
 
-        log.info("Parsed master playlist: {} video variants, {} audio tracks, {} subtitle tracks",
+        log.debug("Parsed master playlist: {} video variants, {} audio tracks, {} subtitle tracks",
                 videoVariants.size(), audioTracks.size(), subtitleTracks.size());
 
         return HlsPlaylist.builder()
@@ -249,7 +249,7 @@ public class HlsParserService {
             }
         }
 
-        log.info("Parsed media playlist: {} segments", segments.size());
+        log.debug("Parsed media playlist: {} segments", segments.size());
 
         return HlsPlaylist.builder()
                 .type(PlaylistType.MEDIA)
@@ -287,7 +287,7 @@ public class HlsParserService {
                             .uri(uri)
                             .iv(iv)
                             .build();
-                    log.info("Found encryption: method={}, uri={}, iv={}", method, uri != null, iv != null);
+                    log.debug("Found encryption: method={}, uri={}, iv={}", method, uri != null, iv != null);
                 }
             }
 
@@ -298,7 +298,7 @@ public class HlsParserService {
             }
         }
 
-        log.info("Parsed media playlist: {} segments, encrypted={}", segments.size(), encryption != null);
+        log.debug("Parsed media playlist: {} segments, encrypted={}", segments.size(), encryption != null);
 
         return MediaPlaylistInfo.builder()
                 .segments(segments)

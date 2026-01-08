@@ -36,7 +36,7 @@ public class VideoTrackDownloadStrategy {
             String parentTaskId,
             Consumer<ProgressUpdate> progressCallback) {
 
-        log.info("Starting video track download from: {}", playlistUrl);
+        log.debug("Starting video track download from: {}", playlistUrl);
 
         try {
             // 1. Parse master playlist
@@ -61,7 +61,7 @@ public class VideoTrackDownloadStrategy {
                     return false;
                 }
 
-                log.info("Selected video variant: {} ({})", selectedVariant.getResolution(), selectedVariant.getBandwidth());
+                log.debug("Selected video variant: {} ({})", selectedVariant.getResolution(), selectedVariant.getBandwidth());
                 videoPlaylistUrl = selectedVariant.getUrl();
 
                 // Update sub-task resolution
@@ -84,7 +84,7 @@ public class VideoTrackDownloadStrategy {
             List<String> segments = playlistInfo.getSegments();
             HlsParserService.EncryptionInfo encryption = playlistInfo.getEncryption();
 
-            log.info("Downloading {} video segments with concurrency={}, encrypted={}",
+            log.debug("Downloading {} video segments with concurrency={}, encrypted={}",
                     segments.size(), maxConcurrent, encryption != null);
 
             // 4. Download segments concurrently with HlsSegmentDownloader
@@ -161,7 +161,7 @@ public class VideoTrackDownloadStrategy {
             }
 
             // 6. Convert TS to MP4 using ffmpeg (fast copy, no re-encoding)
-            log.info("Converting video from TS to MP4: {}", tempVideoFile);
+            log.debug("Converting video from TS to MP4: {}", tempVideoFile);
             List<String> command = new ArrayList<>();
             command.add("ffmpeg");
             command.add("-hide_banner");
@@ -196,7 +196,7 @@ public class VideoTrackDownloadStrategy {
                 return false;
             }
 
-            log.info("Video track download completed: {}", outputFile);
+            log.debug("Video track download completed: {}", outputFile);
             return true;
 
         } catch (Exception e) {

@@ -43,7 +43,7 @@ logging:
     com.github.stormino: ${LOG_LEVEL:INFO}
     okhttp3: WARN
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  #   console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: ${LOG_FILE:logs/vixsrc-downloader.log}

@@ -35,7 +35,7 @@ public class AudioTrackDownloadStrategy {
             String parentTaskId,
             Consumer<ProgressUpdate> progressCallback) {
 
-        log.info("Starting audio track download for language: {}", language);
+        log.debug("Starting audio track download for language: {}", language);
 
         try {
             // 1. Parse master playlist
@@ -55,13 +55,13 @@ public class AudioTrackDownloadStrategy {
                         playlist.getAudioTracks(), language);
 
                 if (selectedTrack == null) {
-                    log.info("No audio track found for language: {} (may be embedded in video)", language);
+                    log.debug("No audio track found for language: {} (may be embedded in video)", language);
                     subTask.setStatus(DownloadStatus.NOT_FOUND);
                     subTask.setErrorMessage("Track not available for this language");
                     return false;
                 }
 
-                log.info("Selected audio track: {}", selectedTrack.getName());
+                log.debug("Selected audio track: {}", selectedTrack.getName());
                 audioPlaylistUrl = selectedTrack.getUrl();
 
                 // Set track title for metadata
@@ -86,7 +86,7 @@ public class AudioTrackDownloadStrategy {
             List<String> segments = playlistInfo.getSegments();
             HlsParserService.EncryptionInfo encryption = playlistInfo.getEncryption();
 
-            log.info("Downloading {} audio segments with concurrency={}, encrypted={}",
+            log.debug("Downloading {} audio segments with concurrency={}, encrypted={}",
                     segments.size(), maxConcurrent, encryption != null);
 
             // 4. Download segments concurrently with HlsSegmentDownloader
@@ -163,7 +163,7 @@ public class AudioTrackDownloadStrategy {
             }
 
             // 6. Convert TS to M4A using ffmpeg (fast copy, no re-encoding)
-            log.info("Converting audio from TS to M4A: {}", tempAudioFile);
+            log.debug("Converting audio from TS to M4A: {}", tempAudioFile);
             List<String> command = new ArrayList<>();
             command.add("ffmpeg");
             command.add("-hide_banner");
@@ -197,7 +197,7 @@ public class AudioTrackDownloadStrategy {
                 return false;
             }
 
-            log.info("Audio track download completed: {}", outputFile);
+            log.debug("Audio track download completed: {}", outputFile);
             return true;
 
         } catch (Exception e) {
@@ -229,7 +229,7 @@ public class AudioTrackDownloadStrategy {
 
                 // Match if either starts with the other (handle 2-char vs 3-char codes)
                 if (trackLang.startsWith(requestLang) || requestLang.startsWith(trackLang)) {
-                    log.info("Matched audio track {} to requested language {}", trackLang, requestLang);
+                    log.debug("Matched audio track {} to requested language {}", trackLang, requestLang);
                     return track;
                 }
             }

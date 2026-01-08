@@ -36,7 +36,7 @@ public class SubtitleTrackDownloadStrategy {
             String parentTaskId,
             Consumer<ProgressUpdate> progressCallback) {
 
-        log.info("Starting subtitle track download for language: {}", language);
+        log.debug("Starting subtitle track download for language: {}", language);
 
         try {
             // 1. Parse master playlist
@@ -56,13 +56,13 @@ public class SubtitleTrackDownloadStrategy {
                         playlist.getSubtitleTracks(), language);
 
                 if (selectedTrack == null) {
-                    log.info("No subtitle track available for language: {} (skipping)", language);
+                    log.debug("No subtitle track available for language: {} (skipping)", language);
                     subTask.setStatus(DownloadStatus.NOT_FOUND);
                     subTask.setErrorMessage("Track not available for this language");
                     return false;
                 }
 
-                log.info("Selected subtitle track: {}", selectedTrack.getName());
+                log.debug("Selected subtitle track: {}", selectedTrack.getName());
                 subtitlePlaylistUrl = selectedTrack.getUrl();
 
                 // Set track title for metadata
@@ -87,7 +87,7 @@ public class SubtitleTrackDownloadStrategy {
             List<String> segments = playlistInfo.getSegments();
             HlsParserService.EncryptionInfo encryption = playlistInfo.getEncryption();
 
-            log.info("Found {} subtitle segments for {}, encrypted={}", segments.size(), language, encryption != null);
+            log.debug("Found {} subtitle segments for {}, encrypted={}", segments.size(), language, encryption != null);
 
             // 4. Download segments with progress tracking
             Path tempSubtitleFile = outputFile.getParent().resolve(outputFile.getFileName() + ".temp");
@@ -125,7 +125,7 @@ public class SubtitleTrackDownloadStrategy {
             convertSubtitleFormat(tempSubtitleFile, outputFile);
             Files.deleteIfExists(tempSubtitleFile);
 
-            log.info("Subtitle track download completed: {}", outputFile);
+            log.debug("Subtitle track download completed: {}", outputFile);
             return true;
 
         } catch (Exception e) {
@@ -157,7 +157,7 @@ public class SubtitleTrackDownloadStrategy {
 
                 // Match if either starts with the other (handle 2-char vs 3-char codes)
                 if (trackLang.startsWith(requestLang) || requestLang.startsWith(trackLang)) {
-                    log.info("Matched subtitle track {} to requested language {}", trackLang, requestLang);
+                    log.debug("Matched subtitle track {} to requested language {}", trackLang, requestLang);
                     return track;
                 }
             }
@@ -206,6 +206,6 @@ public class SubtitleTrackDownloadStrategy {
             }
         }
 
-        log.info("Converted subtitle format from {} to {}", inputFile, outputFile);
+        log.debug("Converted subtitle format from {} to {}", inputFile, outputFile);
     }
 }

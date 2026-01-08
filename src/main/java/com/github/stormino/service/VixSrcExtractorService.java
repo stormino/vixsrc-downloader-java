@@ -56,7 +56,7 @@ public class VixSrcExtractorService {
      * Extract playlist URL from embed page
      */
     public Optional<PlaylistInfo> extractPlaylistUrl(String embedUrl, String language) {
-        log.info("Extracting playlist URL from: {}", embedUrl);
+        log.debug("Extracting playlist URL from: {}", embedUrl);
 
         try {
             String htmlContent = fetchEmbedPage(embedUrl);
@@ -128,7 +128,7 @@ public class VixSrcExtractorService {
         
         // Build complete URL
         String playlistUrl = buildPlaylistUrl(url, token, expires, language, section);
-        log.info("Extracted from masterPlaylist: {}", playlistUrl);
+        log.debug("Extracted from masterPlaylist: {}", playlistUrl);
         
         return Optional.of(playlistUrl);
     }
@@ -141,7 +141,7 @@ public class VixSrcExtractorService {
         
         if (matcher.find()) {
             String url = matcher.group(0).replace("&amp;", "&");
-            log.info("Extracted from direct pattern: {}", url);
+            log.debug("Extracted from direct pattern: {}", url);
             return Optional.of(url);
         }
         
@@ -164,7 +164,7 @@ public class VixSrcExtractorService {
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         if (body.contains("m3u8") || body.contains("playlist")) {
-                            log.info("Extracted from API endpoint: {}", apiUrl);
+                            log.debug("Extracted from API endpoint: {}", apiUrl);
                             return Optional.of(apiUrl);
                         }
                     }
@@ -203,7 +203,7 @@ public class VixSrcExtractorService {
                         String body = response.body().string();
                         if (body.contains("m3u8") || response.request().url().toString().contains("playlist")) {
                             String finalUrl = response.request().url().toString();
-                            log.info("Extracted from video ID: {}", finalUrl);
+                            log.debug("Extracted from video ID: {}", finalUrl);
                             return Optional.of(finalUrl);
                         }
                     }
@@ -252,7 +252,7 @@ public class VixSrcExtractorService {
                 if (response.isSuccessful() && response.body() != null) {
                     String body = response.body().string();
                     if (body.startsWith("#EXTM3U")) {
-                        log.info("Playlist URL verified successfully");
+                        log.debug("Playlist URL verified successfully");
                         return true;
                     }
                 }

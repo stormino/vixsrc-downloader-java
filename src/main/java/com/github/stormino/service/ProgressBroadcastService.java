@@ -32,7 +32,7 @@ public class ProgressBroadcastService {
         emitter.onTimeout(() -> removeEmitter(id, emitter));
         emitter.onError(e -> removeEmitter(id, emitter));
 
-        log.info("New SSE emitter registered. Total: {}", emitters.get(id).size());
+        log.debug("New SSE emitter registered. Total: {}", emitters.get(id).size());
 
         return emitter;
     }
@@ -42,7 +42,7 @@ public class ProgressBroadcastService {
      */
     public void registerListener(Consumer<ProgressUpdate> listener) {
         uiListeners.add(listener);
-        log.info("UI listener registered. Total: {}", uiListeners.size());
+        log.debug("UI listener registered. Total: {}", uiListeners.size());
     }
 
     /**
@@ -50,7 +50,7 @@ public class ProgressBroadcastService {
      */
     public void unregisterListener(Consumer<ProgressUpdate> listener) {
         uiListeners.remove(listener);
-        log.info("UI listener unregistered. Remaining: {}", uiListeners.size());
+        log.debug("UI listener unregistered. Remaining: {}", uiListeners.size());
     }
 
     /**
@@ -101,7 +101,7 @@ public class ProgressBroadcastService {
         CopyOnWriteArrayList<SseEmitter> emitterList = emitters.get(id);
         if (emitterList != null) {
             emitterList.remove(emitter);
-            log.info("SSE emitter removed. Remaining: {}", emitterList.size());
+            log.debug("SSE emitter removed. Remaining: {}", emitterList.size());
         }
     }
 

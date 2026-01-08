@@ -46,7 +46,7 @@ public class TrackDownloadOrchestrator {
      * Download video and audio tracks separately, then merge
      */
     public boolean downloadWithTracks(DownloadTask task) {
-        log.info("Starting concurrent track download for: {}", task.getDisplayName());
+        log.debug("Starting concurrent track download for: {}", task.getDisplayName());
 
         // 1. Create temp directory
         Path tempDir;
@@ -114,7 +114,7 @@ public class TrackDownloadOrchestrator {
             }
 
             if (successfulAudioTracks == 0) {
-                log.info("No separate audio tracks available (audio may be embedded in video)");
+                log.debug("No separate audio tracks available (audio may be embedded in video)");
             }
 
             // Log subtitle failures (non-critical)
@@ -189,7 +189,7 @@ public class TrackDownloadOrchestrator {
             subTasks.add(subtitleTask);
         }
 
-        log.info("Initialized {} track sub-tasks: 1 video + {} audio + {} subtitle",
+        log.debug("Initialized {} track sub-tasks: 1 video + {} audio + {} subtitle",
                 subTasks.size(), languages.size(), languages.size());
         return subTasks;
     }
@@ -205,7 +205,7 @@ public class TrackDownloadOrchestrator {
             boolean isAudio = subTask.getType() == DownloadSubTask.SubTaskType.AUDIO;
             String language = isVideo ? primaryLanguage : subTask.getLanguage();
 
-            log.info("Starting download for track: {}", subTask.getDisplayName());
+            log.debug("Starting download for track: {}", subTask.getDisplayName());
 
             // Build embed URL (referer)
             String embedUrl;
@@ -296,7 +296,7 @@ public class TrackDownloadOrchestrator {
                 subTask.setDownloadSpeed(null);
                 subTask.setEtaSeconds(null);
                 broadcastSubTaskUpdate(task, subTask);
-                log.info("Completed download for: {}", subTask.getDisplayName());
+                log.debug("Completed download for: {}", subTask.getDisplayName());
                 return true;
             } else {
                 // Don't overwrite NOT_FOUND status - it was already set by the strategy
@@ -305,7 +305,7 @@ public class TrackDownloadOrchestrator {
                     subTask.setErrorMessage("Download failed");
                 }
                 broadcastSubTaskUpdate(task, subTask);
-                log.info("Download not successful for: {} (status: {})",
+                log.debug("Download not successful for: {} (status: {})",
                         subTask.getDisplayName(), subTask.getStatus());
                 return false;
             }
@@ -314,7 +314,7 @@ public class TrackDownloadOrchestrator {
     }
 
     private boolean mergeTracks(DownloadTask task, List<DownloadSubTask> subTasks, Path tempDir) {
-        log.info("Merging {} tracks", subTasks.size());
+        log.debug("Merging {} tracks", subTasks.size());
 
         task.setStatus(DownloadStatus.MERGING);
         task.setProgress(0.0);
@@ -350,7 +350,7 @@ public class TrackDownloadOrchestrator {
                 .filter(st -> st.getStatus() == DownloadStatus.COMPLETED)
                 .toList();
 
-        log.info("Found {} completed audio tracks for merging", audioTasks.size());
+        log.debug("Found {} completed audio tracks for merging", audioTasks.size());
         for (DownloadSubTask audioTask : audioTasks) {
             command.add("-i");
             command.add(audioTask.getTempFilePath());
@@ -362,7 +362,7 @@ public class TrackDownloadOrchestrator {
                 .filter(st -> st.getStatus() == DownloadStatus.COMPLETED)
                 .toList();
 
-        log.info("Found {} completed subtitle tracks for merging", subtitleTasks.size());
+        log.debug("Found {} completed subtitle tracks for merging", subtitleTasks.size());
         for (DownloadSubTask subtitleTask : subtitleTasks) {
             command.add("-i");
             command.add(subtitleTask.getTempFilePath());
@@ -370,7 +370,7 @@ public class TrackDownloadOrchestrator {
 
         // If no audio tracks and no subtitles, just copy the video file
         if (audioTasks.isEmpty() && subtitleTasks.isEmpty()) {
-            log.info("No separate audio or subtitle tracks - copying video file directly");
+            log.debug("No separate audio or subtitle tracks - copying video file directly");
             try {
                 java.nio.file.Files.copy(
                         java.nio.file.Paths.get(videoTask.getTempFilePath()),
@@ -465,7 +465,7 @@ public class TrackDownloadOrchestrator {
         command.add("-y");
         command.add(task.getOutputPath());
 
-        log.info("Merge command: {}", String.join(" ", command));
+        log.debug("Merge command: {}", String.join(" ", command));
 
         boolean success = executorService.executeMergeCommand(
                 command,
@@ -488,7 +488,7 @@ public class TrackDownloadOrchestrator {
         Files.createDirectories(baseTempPath);
         Path tempDir = baseTempPath.resolve(task.getId());
         Files.createDirectories(tempDir);
-        log.info("Created temp directory: {}", tempDir);
+        log.debug("Created temp directory: {}", tempDir);
         return tempDir;
     }
 
@@ -505,7 +505,7 @@ public class TrackDownloadOrchestrator {
                                 }
                             });
                 }
-                log.info("Cleaned up temp directory: {}", tempDir);
+                log.debug("Cleaned up temp directory: {}", tempDir);
             }
         } catch (IOException e) {
             log.warn("Failed to cleanup temp directory: {}", e.getMessage());
