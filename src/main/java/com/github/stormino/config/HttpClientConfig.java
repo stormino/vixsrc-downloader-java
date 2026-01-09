@@ -31,7 +31,7 @@ public class HttpClientConfig {
                 .readTimeout(Duration.ofSeconds(properties.getExtractor().getTimeoutSeconds()))
                 .writeTimeout(Duration.ofSeconds(properties.getExtractor().getTimeoutSeconds()))
                 .addInterceptor(new CloudflareInterceptor())
-                .addInterceptor(new RetryInterceptor(properties.getExtractor().getMaxRetries()))
+                .addInterceptor(new RetryInterceptor(Integer.MAX_VALUE))
                 .cookieJar(new InMemoryCookieJar())
                 .followRedirects(true)
                 .followSslRedirects(true)

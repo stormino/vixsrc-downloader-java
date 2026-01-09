@@ -140,12 +140,8 @@ public class SettingsView extends VerticalLayout {
         IntegerField timeoutField = new IntegerField("Timeout (seconds)");
         timeoutField.setValue(properties.getExtractor().getTimeoutSeconds());
         timeoutField.setReadOnly(true);
-        
-        IntegerField maxRetriesField = new IntegerField("Max Retries");
-        maxRetriesField.setValue(properties.getExtractor().getMaxRetries());
-        maxRetriesField.setReadOnly(true);
-        
-        extractorForm.add(baseUrlField, timeoutField, maxRetriesField);
+
+        extractorForm.add(baseUrlField, timeoutField);
         
         // System Info
         H3 systemHeader = new H3("System Information");

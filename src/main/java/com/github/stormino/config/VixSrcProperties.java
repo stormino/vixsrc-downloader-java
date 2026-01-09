@@ -64,9 +64,6 @@ public class VixSrcProperties {
         @NotBlank
         private String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
-        @Min(1)
-        private int maxRetries = 3;
-
         @Min(100)
         private long retryDelayMs = 2000;
     }
