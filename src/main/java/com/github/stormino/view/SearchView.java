@@ -57,7 +57,6 @@ public class SearchView extends VerticalLayout {
         // Header
         H2 title = new H2("Search Movies & TV Shows");
         title.addClassNames(LumoUtility.Margin.Top.NONE, LumoUtility.Margin.Bottom.SMALL);
-        title.getStyle().set("font-size", "1.5rem");
         
         // Search controls
         searchField = new TextField();

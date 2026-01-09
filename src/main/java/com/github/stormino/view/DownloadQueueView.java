@@ -113,39 +113,48 @@ public class DownloadQueueView extends VerticalLayout {
 
         treeGrid.addHierarchyColumn(this::getItemDisplayName)
                 .setHeader("Title")
-                .setFlexGrow(3);
+                .setFlexGrow(3)
+                .setResizable(true);
 
         treeGrid.addComponentColumn(this::createStatusBadge)
                 .setHeader("Status")
-                .setWidth("120px");
+                .setWidth("120px")
+                .setResizable(true);
 
         treeGrid.addComponentColumn(this::createProgressBar)
                 .setHeader("Progress")
-                .setWidth("200px");
+                .setWidth("200px")
+                .setResizable(true);
 
         treeGrid.addColumn(this::getItemSize)
                 .setHeader("Downloaded")
-                .setWidth("120px");
+                .setWidth("120px")
+                .setResizable(true);
 
         treeGrid.addColumn(this::getItemSpeed)
                 .setHeader("Speed")
-                .setWidth("120px");
+                .setWidth("120px")
+                .setResizable(true);
 
         treeGrid.addColumn(this::getItemEta)
                 .setHeader("ETA")
-                .setWidth("100px");
+                .setWidth("100px")
+                .setResizable(true);
 
         treeGrid.addColumn(this::getItemCreatedTime)
                 .setHeader("Created")
-                .setWidth("100px");
+                .setWidth("100px")
+                .setResizable(true);
 
         treeGrid.addComponentColumn(this::createActionButtons)
                 .setHeader("Actions")
-                .setWidth("100px");
+                .setWidth("100px")
+                .setResizable(true);
 
         treeGrid.setHeight("600px");
 
         add(header, treeGrid);
+        addClassName("fade-in");
 
         refreshGrid();
         updateStatusBar();

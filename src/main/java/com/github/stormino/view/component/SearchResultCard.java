@@ -62,19 +62,23 @@ public class SearchResultCard extends VerticalLayout {
                 .set("transition", "transform 0.2s ease, box-shadow 0.2s ease")
                 .set("cursor", "default");
 
-        // Set background color based on content type with hover effect
+        // Set background gradient based on content type with hover effect
         if (type == DownloadTask.ContentType.MOVIE) {
-            getStyle().set("background-color", "#E3F2FD"); // Pastel blue for movies
+            getStyle().set("background", "linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)"); // Modern blue gradient
             getElement().addEventListener("mouseenter", e ->
-                getStyle().set("box-shadow", "0 4px 12px rgba(33, 150, 243, 0.3)"));
+                getStyle().set("box-shadow", "0 8px 16px rgba(33, 150, 243, 0.25)")
+                        .set("transform", "translateY(-2px)"));
             getElement().addEventListener("mouseleave", e ->
-                getStyle().set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.12)"));
+                getStyle().set("box-shadow", "0 2px 4px rgba(0, 0, 0, 0.1)")
+                        .set("transform", "translateY(0)"));
         } else {
-            getStyle().set("background-color", "#FFEBEE"); // Pastel red for TV shows
+            getStyle().set("background", "linear-gradient(135deg, #FCE4EC 0%, #F8BBD0 100%)"); // Modern pink gradient
             getElement().addEventListener("mouseenter", e ->
-                getStyle().set("box-shadow", "0 4px 12px rgba(244, 67, 54, 0.3)"));
+                getStyle().set("box-shadow", "0 8px 16px rgba(233, 30, 99, 0.25)")
+                        .set("transform", "translateY(-2px)"));
             getElement().addEventListener("mouseleave", e ->
-                getStyle().set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.12)"));
+                getStyle().set("box-shadow", "0 2px 4px rgba(0, 0, 0, 0.1)")
+                        .set("transform", "translateY(0)"));
         }
 
         // Title row
@@ -88,7 +92,6 @@ public class SearchResultCard extends VerticalLayout {
         H3 title = new H3(content.getTitle());
         title.addClassNames(LumoUtility.Margin.NONE);
         title.getStyle()
-                .set("font-size", "1.1rem")
                 .set("line-height", "1.3")
                 .set("font-weight", "600");
         titleRow.add(title);
