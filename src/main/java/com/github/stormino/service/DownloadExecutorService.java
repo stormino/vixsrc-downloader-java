@@ -2,7 +2,6 @@ package com.github.stormino.service;
 
 import com.github.stormino.config.VixSrcProperties;
 import com.github.stormino.model.DownloadStatus;
-import com.github.stormino.model.DownloadTask;
 import com.github.stormino.model.ProgressUpdate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,9 +10,6 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -35,7 +31,6 @@ public class DownloadExecutorService {
     private static final Pattern FFMPEG_DURATION_PATTERN = Pattern.compile("Duration:\\s*(\\d{2}):(\\d{2}):(\\d{2}\\.\\d+)");
     private static final Pattern FFMPEG_BITRATE_PATTERN = Pattern.compile("bitrate=\\s*(\\d+\\.?\\d*)\\s*([kmgt]?bits/s)", Pattern.CASE_INSENSITIVE);
     private static final Pattern FFMPEG_SIZE_PATTERN = Pattern.compile("size=\\s*(\\d+)([kKmMgGtT]?[iI]?[bB])", Pattern.CASE_INSENSITIVE);
-    private static final Pattern FFMPEG_SPEED_PATTERN = Pattern.compile("speed=\\s*(\\d+\\.?\\d*)x");
     
     /**
      * Cancel a running download

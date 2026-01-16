@@ -17,7 +17,6 @@ import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.data.provider.hierarchy.TreeData;
 import com.vaadin.flow.data.provider.hierarchy.TreeDataProvider;
-import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.LumoUtility;
@@ -30,13 +29,10 @@ import com.github.stormino.service.ProgressBroadcastService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -110,6 +106,8 @@ public class DownloadQueueView extends VerticalLayout {
 
         // TreeGrid
         treeGrid = new TreeGrid<>();
+        //<theme-editor-local-classname>
+        treeGrid.addClassName("download-queue-view-grid-1");
 
         treeGrid.addHierarchyColumn(this::getItemDisplayName)
                 .setHeader("Title")
