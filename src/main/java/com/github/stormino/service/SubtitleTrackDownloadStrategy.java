@@ -1,8 +1,12 @@
 package com.github.stormino.service;
 
+import com.github.stormino.model.DownloadResult;
 import com.github.stormino.model.DownloadStatus;
 import com.github.stormino.model.DownloadSubTask;
 import com.github.stormino.model.ProgressUpdate;
+import com.github.stormino.service.strategy.TrackDownloadRequest;
+import com.github.stormino.service.strategy.TrackDownloadStrategy;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,22 +22,41 @@ import java.util.function.Consumer;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class SubtitleTrackDownloadStrategy {
+public class SubtitleTrackDownloadStrategy implements TrackDownloadStrategy {
 
     private final HlsParserService hlsParser;
     private final HlsSegmentDownloader segmentDownloader;
 
+    @Override
+    public DownloadResult downloadTrack(TrackDownloadRequest request) {
+        return downloadSubtitleTrack(
+                request.getPlaylistUrl(),
+                request.getReferer(),
+                request.getOutputFile(),
+                request.getLanguage(),
+                request.getMaxConcurrency(),
+                request.getSubTask(),
+                request.getParentTaskId(),
+                request.getProgressCallback()
+        );
+    }
+
+    @Override
+    public TrackType getTrackType() {
+        return TrackType.SUBTITLE;
+    }
+
     /**
      * Download subtitle track for specific language from HLS playlist
      */
-    public boolean downloadSubtitleTrack(
-            String playlistUrl,
-            String referer,
-            Path outputFile,
-            String language,
+    public DownloadResult downloadSubtitleTrack(
+            @NonNull String playlistUrl,
+            @NonNull String referer,
+            @NonNull Path outputFile,
+            @NonNull String language,
             int maxConcurrent,
-            DownloadSubTask subTask,
-            String parentTaskId,
+            @NonNull DownloadSubTask subTask,
+            @NonNull String parentTaskId,
             Consumer<ProgressUpdate> progressCallback) {
 
         log.debug("Starting subtitle track download for language: {}", language);
@@ -43,7 +66,7 @@ public class SubtitleTrackDownloadStrategy {
             Optional<HlsParserService.HlsPlaylist> playlistOpt = hlsParser.parsePlaylist(playlistUrl, referer);
             if (playlistOpt.isEmpty()) {
                 log.error("Failed to parse master playlist");
-                return false;
+                return DownloadResult.failure("Failed to parse master playlist");
             }
 
             HlsParserService.HlsPlaylist playlist = playlistOpt.get();
@@ -59,7 +82,7 @@ public class SubtitleTrackDownloadStrategy {
                     log.debug("No subtitle track available for language: {} (skipping)", language);
                     subTask.setStatus(DownloadStatus.NOT_FOUND);
                     subTask.setErrorMessage("Track not available for this language");
-                    return false;
+                    return DownloadResult.notFound("Track not available for this language");
                 }
 
                 log.debug("Selected subtitle track: {}", selectedTrack.getName());
@@ -80,7 +103,7 @@ public class SubtitleTrackDownloadStrategy {
                     hlsParser.parseMediaPlaylistInfo(subtitlePlaylistUrl, referer);
             if (playlistInfoOpt.isEmpty()) {
                 log.error("Failed to parse subtitle playlist info");
-                return false;
+                return DownloadResult.failure("Failed to parse subtitle playlist info");
             }
 
             HlsParserService.MediaPlaylistInfo playlistInfo = playlistInfoOpt.get();
@@ -118,7 +141,7 @@ public class SubtitleTrackDownloadStrategy {
 
             if (!result.isSuccess()) {
                 log.error("Subtitle track download failed: {}", result.getErrorMessage());
-                return false;
+                return DownloadResult.failure("Subtitle track download failed: " + result.getErrorMessage());
             }
 
             // 5. Convert to proper WebVTT/SRT if needed
@@ -126,11 +149,11 @@ public class SubtitleTrackDownloadStrategy {
             Files.deleteIfExists(tempSubtitleFile);
 
             log.debug("Subtitle track download completed: {}", outputFile);
-            return true;
+            return DownloadResult.success();
 
         } catch (Exception e) {
             log.error("Failed to download subtitle track: {}", e.getMessage(), e);
-            return false;
+            return DownloadResult.failure("Failed to download subtitle track: " + e.getMessage(), e);
         }
     }
 

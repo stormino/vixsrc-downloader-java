@@ -8,6 +8,8 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -82,11 +84,20 @@ public class VixSrcExtractorService {
             return Optional.empty();
             
         } catch (IOException e) {
-            log.error("Error extracting playlist URL: {}", e.getMessage());
+            log.error("Error extracting playlist URL from {}: {}", embedUrl, e.getMessage(), e);
             return Optional.empty();
         }
     }
     
+    @Retryable(
+        retryFor = {IOException.class},
+        maxAttemptsExpression = "#{@vixSrcProperties.extractor.maxRetries}",
+        backoff = @Backoff(
+            delayExpression = "#{@vixSrcProperties.extractor.retryDelayMs}",
+            multiplierExpression = "#{@vixSrcProperties.extractor.retryBackoffMultiplier}",
+            maxDelayExpression = "#{@vixSrcProperties.extractor.maxRetryDelayMs}"
+        )
+    )
     private String fetchEmbedPage(String embedUrl) throws IOException {
         Request request = new Request.Builder()
                 .url(embedUrl)

@@ -29,8 +29,14 @@ public class ProgressBroadcastService {
         emitters.computeIfAbsent(id, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> removeEmitter(id, emitter));
-        emitter.onTimeout(() -> removeEmitter(id, emitter));
-        emitter.onError(e -> removeEmitter(id, emitter));
+        emitter.onTimeout(() -> {
+            log.debug("SSE emitter timed out");
+            removeEmitter(id, emitter);
+        });
+        emitter.onError(e -> {
+            log.warn("SSE emitter error: {}", e.getMessage());
+            removeEmitter(id, emitter);
+        });
 
         log.debug("New SSE emitter registered. Total: {}", emitters.get(id).size());
 
@@ -81,7 +87,7 @@ public class ProgressBroadcastService {
                         .data(update));
 
             } catch (IOException e) {
-                log.warn("Failed to send SSE event: {}", e.getMessage());
+                log.warn("Failed to send SSE event for task {}: {}", update.getTaskId(), e.getMessage());
                 removeEmitter(id, emitter);
             }
         }

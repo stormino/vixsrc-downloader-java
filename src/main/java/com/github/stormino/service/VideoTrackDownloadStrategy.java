@@ -1,8 +1,16 @@
 package com.github.stormino.service;
 
+import com.github.stormino.model.DownloadResult;
 import com.github.stormino.model.DownloadStatus;
 import com.github.stormino.model.DownloadSubTask;
 import com.github.stormino.model.ProgressUpdate;
+import com.github.stormino.service.command.FfmpegCommandBuilder;
+import com.github.stormino.service.progress.ProgressEventBuilder;
+import com.github.stormino.service.strategy.TrackDownloadRequest;
+import com.github.stormino.service.strategy.TrackDownloadStrategy;
+import com.github.stormino.util.DownloadConstants;
+import com.github.stormino.util.FormatUtils;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,23 +25,44 @@ import java.util.function.Consumer;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class VideoTrackDownloadStrategy {
+public class VideoTrackDownloadStrategy implements TrackDownloadStrategy {
 
     private final HlsParserService hlsParser;
     private final HlsSegmentDownloader segmentDownloader;
     private final DownloadExecutorService executorService;
+    private final FfmpegCommandBuilder commandBuilder;
+    private final ProgressEventBuilder progressBuilder;
+
+    @Override
+    public DownloadResult downloadTrack(TrackDownloadRequest request) {
+        return downloadVideoTrack(
+                request.getPlaylistUrl(),
+                request.getReferer(),
+                request.getOutputFile(),
+                request.getQuality(),
+                request.getMaxConcurrency(),
+                request.getSubTask(),
+                request.getParentTaskId(),
+                request.getProgressCallback()
+        );
+    }
+
+    @Override
+    public TrackType getTrackType() {
+        return TrackType.VIDEO;
+    }
 
     /**
      * Download video track from HLS playlist
      */
-    public boolean downloadVideoTrack(
-            String playlistUrl,
-            String referer,
-            Path outputFile,
+    public DownloadResult downloadVideoTrack(
+            @NonNull String playlistUrl,
+            @NonNull String referer,
+            @NonNull Path outputFile,
             String quality,
             int maxConcurrent,
-            DownloadSubTask subTask,
-            String parentTaskId,
+            @NonNull DownloadSubTask subTask,
+            @NonNull String parentTaskId,
             Consumer<ProgressUpdate> progressCallback) {
 
         log.debug("Starting video track download from: {}", playlistUrl);
@@ -43,7 +72,7 @@ public class VideoTrackDownloadStrategy {
             Optional<HlsParserService.HlsPlaylist> playlistOpt = hlsParser.parsePlaylist(playlistUrl, referer);
             if (playlistOpt.isEmpty()) {
                 log.error("Failed to parse master playlist");
-                return false;
+                return DownloadResult.failure("Failed to parse master playlist");
             }
 
             HlsParserService.HlsPlaylist playlist = playlistOpt.get();
@@ -58,7 +87,7 @@ public class VideoTrackDownloadStrategy {
 
                 if (selectedVariant == null) {
                     log.error("No video variant found");
-                    return false;
+                    return DownloadResult.failure("No video variant found");
                 }
 
                 log.debug("Selected video variant: {} ({})", selectedVariant.getResolution(), selectedVariant.getBandwidth());
@@ -77,7 +106,7 @@ public class VideoTrackDownloadStrategy {
                     hlsParser.parseMediaPlaylistInfo(videoPlaylistUrl, referer);
             if (playlistInfoOpt.isEmpty()) {
                 log.error("Failed to parse video playlist info");
-                return false;
+                return DownloadResult.failure("Failed to parse video playlist info");
             }
 
             HlsParserService.MediaPlaylistInfo playlistInfo = playlistInfoOpt.get();
@@ -112,7 +141,7 @@ public class VideoTrackDownloadStrategy {
 
                         if (progress.getDownloadedBytes() != null && progress.getDownloadedBytes() > 0) {
                             double bytesPerSecond = (double) progress.getDownloadedBytes() / elapsedSeconds;
-                            downloadSpeed = formatSpeed(bytesPerSecond);
+                            downloadSpeed = FormatUtils.formatSpeed(bytesPerSecond);
 
                             if (progress.getTotalBytes() != null && progress.getTotalBytes() > progress.getDownloadedBytes()) {
                                 long remainingBytes = progress.getTotalBytes() - progress.getDownloadedBytes();
@@ -127,17 +156,16 @@ public class VideoTrackDownloadStrategy {
 
                         // Broadcast progress
                         if (progressCallback != null) {
-                            ProgressUpdate update = ProgressUpdate.builder()
-                                    .taskId(parentTaskId)
-                                    .subTaskId(subTask.getId())
-                                    .status(DownloadStatus.DOWNLOADING)
-                                    .progress(progress.getPercentage())
-                                    .message(progress.getCurrentSegment())
-                                    .downloadedBytes(progress.getDownloadedBytes())
-                                    .totalBytes(progress.getTotalBytes())
-                                    .downloadSpeed(downloadSpeed)
-                                    .etaSeconds(etaSeconds)
-                                    .build();
+                            ProgressUpdate update = progressBuilder.buildSegmentProgress(
+                                    parentTaskId,
+                                    subTask.getId(),
+                                    progress.getPercentage(),
+                                    progress.getCurrentSegment(),
+                                    progress.getDownloadedBytes(),
+                                    progress.getTotalBytes(),
+                                    downloadSpeed,
+                                    etaSeconds
+                            );
                             progressCallback.accept(update);
                         }
                     }
@@ -145,39 +173,24 @@ public class VideoTrackDownloadStrategy {
 
             if (!result.isSuccess()) {
                 log.error("Video segment download failed: {}", result.getErrorMessage());
-                return false;
+                return DownloadResult.failure("Video segment download failed: " + result.getErrorMessage());
             }
 
             // 5. Notify that conversion is starting
             if (progressCallback != null) {
-                ProgressUpdate convertingUpdate = ProgressUpdate.builder()
-                        .taskId(parentTaskId)
-                        .subTaskId(subTask.getId())
-                        .status(DownloadStatus.DOWNLOADING)
-                        .progress(100.0)
-                        .message("Converting to MP4...")
-                        .build();
+                ProgressUpdate convertingUpdate = progressBuilder.buildConversionStatus(
+                        parentTaskId,
+                        subTask.getId(),
+                        "Converting to MP4..."
+                );
                 progressCallback.accept(convertingUpdate);
             }
 
             // 6. Convert TS to MP4 using ffmpeg (fast copy, no re-encoding)
             log.debug("Converting video from TS to MP4: {}", tempVideoFile);
-            List<String> command = new ArrayList<>();
-            command.add("ffmpeg");
-            command.add("-hide_banner");
-            command.add("-loglevel");
-            command.add("info");
-            command.add("-stats");
-            command.add("-i");
-            command.add(tempVideoFile.toString());
-            command.add("-c");
-            command.add("copy");
-            command.add("-bsf:a");
-            command.add("aac_adtstoasc");
-            command.add("-y");
-            command.add(outputFile.toString());
+            List<String> command = commandBuilder.buildVideoConversionCommand(tempVideoFile, outputFile);
 
-            boolean conversionSuccess = executorService.executeTrackDownload(
+            DownloadResult conversionResult = executorService.downloadTrack(
                     command,
                     parentTaskId,
                     subTask.getId(),
@@ -191,17 +204,17 @@ public class VideoTrackDownloadStrategy {
                 log.warn("Failed to delete temp file: {}", tempVideoFile);
             }
 
-            if (!conversionSuccess) {
-                log.error("Video conversion to MP4 failed");
-                return false;
+            if (!conversionResult.isSuccess()) {
+                log.error("Video conversion to MP4 failed: {}", conversionResult.getErrorMessage());
+                return DownloadResult.failure("Video conversion to MP4 failed: " + conversionResult.getErrorMessage());
             }
 
             log.debug("Video track download completed: {}", outputFile);
-            return true;
+            return DownloadResult.success();
 
         } catch (Exception e) {
             log.error("Failed to download video track: {}", e.getMessage(), e);
-            return false;
+            return DownloadResult.failure("Failed to download video track: " + e.getMessage(), e);
         }
     }
 
@@ -233,7 +246,7 @@ public class VideoTrackDownloadStrategy {
                                 return variant;
                             }
                         } catch (NumberFormatException e) {
-                            // Ignore
+                            log.debug("Could not parse resolution height from '{}': {}", resolution, e.getMessage());
                         }
                     }
                 }
@@ -257,18 +270,6 @@ public class VideoTrackDownloadStrategy {
             return Integer.parseInt(normalized);
         } catch (NumberFormatException e) {
             return null;
-        }
-    }
-
-    private String formatSpeed(double bytesPerSecond) {
-        if (bytesPerSecond >= 1_000_000_000) {
-            return String.format("%.2f GB/s", bytesPerSecond / 1_000_000_000);
-        } else if (bytesPerSecond >= 1_000_000) {
-            return String.format("%.2f MB/s", bytesPerSecond / 1_000_000);
-        } else if (bytesPerSecond >= 1_000) {
-            return String.format("%.2f KB/s", bytesPerSecond / 1_000);
-        } else {
-            return String.format("%.0f B/s", bytesPerSecond);
         }
     }
 }

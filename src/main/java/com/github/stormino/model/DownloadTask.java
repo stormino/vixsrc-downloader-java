@@ -1,5 +1,6 @@
 package com.github.stormino.model;
 
+import com.github.stormino.util.FormatUtils;
 import lombok.Builder;
 import lombok.Data;
 
@@ -238,16 +239,6 @@ public class DownloadTask {
         }
 
         double bytesPerSecond = (double) downloadedBytesNullable / elapsedSeconds;
-        return formatSpeed(bytesPerSecond);
-    }
-
-    private static String formatSpeed(double bytesPerSecond) {
-        if (bytesPerSecond >= 1_000_000) {
-            return String.format("%.2f MB/s", bytesPerSecond / 1_000_000);
-        } else if (bytesPerSecond >= 1_000) {
-            return String.format("%.2f KB/s", bytesPerSecond / 1_000);
-        } else {
-            return String.format("%.0f B/s", bytesPerSecond);
-        }
+        return FormatUtils.formatSpeed(bytesPerSecond);
     }
 }

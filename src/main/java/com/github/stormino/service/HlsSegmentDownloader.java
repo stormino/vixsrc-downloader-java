@@ -227,7 +227,7 @@ public class HlsSegmentDownloader {
 
                 } catch (Exception e) {
                     failedCount.incrementAndGet();
-                    log.error("Failed to download segment {}: {}", segmentIndex, e.getMessage());
+                    log.error("Failed to download segment {} from {}: {}", segmentIndex, segmentUrl, e.getMessage(), e);
                     return null;
                 }
             }, executor);
@@ -315,7 +315,7 @@ public class HlsSegmentDownloader {
         try {
             return downloadSegmentData(keyUrl, referer);
         } catch (IOException e) {
-            log.error("Failed to download encryption key: {}", e.getMessage());
+            log.error("Failed to download encryption key from {}: {}", keyUrl, e.getMessage(), e);
             return null;
         }
     }
@@ -351,7 +351,7 @@ public class HlsSegmentDownloader {
             return cipher.doFinal(encryptedData);
 
         } catch (Exception e) {
-            log.error("Failed to decrypt segment {}: {}", segmentIndex, e.getMessage());
+            log.error("Failed to decrypt segment {} (method={}): {}", segmentIndex, encryptionInfo.getMethod(), e.getMessage(), e);
             return encryptedData;  // Return encrypted data as fallback
         }
     }

@@ -14,7 +14,10 @@ vixsrc:
     base-url: https://vixsrc.to
     timeout-seconds: 30
     user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    retry-delay-ms: 2000
+    retry-delay-ms: ${RETRY_DELAY_MS:2000}
+    max-retries: ${MAX_RETRIES:2147483647}
+    max-retry-delay-ms: ${MAX_RETRY_DELAY_MS:30000}
+    retry-backoff-multiplier: ${RETRY_BACKOFF_MULTIPLIER:2}
 
 spring:
   application:

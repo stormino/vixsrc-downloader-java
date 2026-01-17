@@ -6,6 +6,8 @@ import com.github.stormino.model.DownloadStatus;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.model.PlaylistInfo;
 import com.github.stormino.model.ProgressUpdate;
+import com.github.stormino.util.DownloadConstants;
+import com.github.stormino.util.PathUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -35,7 +37,7 @@ public class DownloadQueueService {
     private DownloadQueueService self;
 
     private final ConcurrentHashMap<String, DownloadTask> tasks = new ConcurrentHashMap<>();
-    private final Queue<DownloadTask> queue = new LinkedList<>();
+    private final Queue<DownloadTask> queue = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     public DownloadQueueService(VixSrcExtractorService extractorService,
                                 TmdbMetadataService metadataService,
@@ -122,9 +124,7 @@ public class DownloadQueueService {
 
         // Store and queue
         tasks.put(task.getId(), task);
-        synchronized (queue) {
-            queue.offer(task);
-        }
+        queue.offer(task);
 
         log.info("Added download task: {} [{}]", task.getDisplayName(), task.getId());
 
@@ -163,8 +163,8 @@ public class DownloadQueueService {
                 }
                 totalEpisodes++;
 
-                // Broadcast queued status every 10 episodes for UI responsiveness
-                if (totalEpisodes % 10 == 0) {
+                // Broadcast queued status periodically for UI responsiveness
+                if (totalEpisodes % DownloadConstants.BATCH_QUEUE_BROADCAST_INTERVAL == 0) {
                     broadcastQueuedStatus(task);
                 }
             }
@@ -208,8 +208,8 @@ public class DownloadQueueService {
             }
             episodeCount++;
 
-            // Broadcast queued status every 5 episodes for UI responsiveness
-            if (episodeCount % 5 == 0) {
+            // Broadcast queued status periodically for UI responsiveness
+            if (episodeCount % DownloadConstants.SEASON_QUEUE_BROADCAST_INTERVAL == 0) {
                 broadcastQueuedStatus(task);
             }
         }
@@ -264,9 +264,7 @@ public class DownloadQueueService {
 
         // Store and queue
         tasks.put(task.getId(), task);
-        synchronized (queue) {
-            queue.offer(task);
-        }
+        queue.offer(task);
 
         return task;
     }
@@ -279,17 +277,20 @@ public class DownloadQueueService {
         String filename;
 
         if (task.getContentType() == DownloadTask.ContentType.TV && task.getTitle() != null) {
-            String episodePart = task.getEpisodeName() != null ?
-                " - " + task.getEpisodeName() : "";
-            filename = String.format("%s - S%02dE%02d%s.mp4",
-                task.getTitle(), task.getSeason(), task.getEpisode(), episodePart);
-            filename = sanitizeFilename(filename);
+            if (task.getEpisodeName() != null) {
+                filename = String.format(DownloadConstants.TV_EPISODE_WITH_NAME_FORMAT,
+                    task.getTitle(), task.getSeason(), task.getEpisode(), task.getEpisodeName());
+            } else {
+                filename = String.format(DownloadConstants.TV_EPISODE_FORMAT,
+                    task.getTitle(), task.getSeason(), task.getEpisode());
+            }
+            filename = PathUtils.sanitizeFilename(filename) + DownloadConstants.VIDEO_EXTENSION;
 
-            String showDir = sanitizeFilename(task.getTitle());
+            String showDir = PathUtils.sanitizeFilename(task.getTitle());
             if (task.getYear() != null) {
                 showDir = showDir + "." + task.getYear();
             }
-            String seasonDir = String.format("Season %02d", task.getSeason());
+            String seasonDir = String.format(DownloadConstants.SEASON_DIR_FORMAT, task.getSeason());
 
             try {
                 java.nio.file.Files.createDirectories(
@@ -327,9 +328,7 @@ public class DownloadQueueService {
         DownloadTask task = tasks.get(taskId);
         if (task != null && !task.isCompleted()) {
             task.setStatus(DownloadStatus.CANCELLED);
-            synchronized (queue) {
-                queue.remove(task);
-            }
+            queue.remove(task);
 
             // Kill the running process if it exists
             executorService.cancelDownload(taskId);
@@ -492,11 +491,11 @@ public class DownloadQueueService {
         // Create directory structure for TV shows
         String outputPath;
         if (task.getContentType() == DownloadTask.ContentType.TV && metadata != null) {
-            String showDir = sanitizeFilename(metadata.getTitle());
+            String showDir = PathUtils.sanitizeFilename(metadata.getTitle());
             if (metadata.getYear() != null) {
                 showDir = showDir + "." + metadata.getYear();
             }
-            String seasonDir = String.format("Season %02d", task.getSeason());
+            String seasonDir = String.format(DownloadConstants.SEASON_DIR_FORMAT, task.getSeason());
             outputPath = Paths.get(basePath, showDir, seasonDir, filename).toString();
 
             // Create directories
@@ -509,14 +508,7 @@ public class DownloadQueueService {
             // Movies go directly in base path
             outputPath = Paths.get(basePath, filename).toString();
         }
-        
+
         return outputPath;
-    }
-    
-    private String sanitizeFilename(String filename) {
-        return filename
-                .replaceAll("[<>:\"/\\\\|?*]", "")
-                .replaceAll("\\s+", ".")
-                .trim();
     }
 }

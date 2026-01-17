@@ -66,5 +66,14 @@ public class VixSrcProperties {
 
         @Min(100)
         private long retryDelayMs = 2000;
+
+        @Min(1)
+        private int maxRetries = Integer.MAX_VALUE;
+
+        @Min(1000)
+        private long maxRetryDelayMs = 30000;
+
+        @Min(1)
+        private int retryBackoffMultiplier = 2;
     }
 }
