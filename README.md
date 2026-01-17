@@ -293,22 +293,64 @@ brew install ffmpeg
 
 ## Production Deployment
 
-### Docker
+### Docker (Pre-built Image)
+
+The easiest way to run the application is using the pre-built image from GitHub Container Registry:
+
+```bash
+docker run -d \
+  --name vixsrc-downloader \
+  -p 8080:8080 \
+  -e TMDB_API_KEY="your_tmdb_api_key" \
+  -v /path/to/downloads:/downloads \
+  ghcr.io/stormino/vixsrc-downloader-java:latest
+```
+
+### Docker (Build Locally)
 
 ```bash
 # Build image
 docker build -t vixsrc-downloader .
 
-# Run with volume mapping
+# Run container
 docker run -d \
+  --name vixsrc-downloader \
   -p 8080:8080 \
-  -e TMDB_API_KEY="your_key" \
+  -e TMDB_API_KEY="your_tmdb_api_key" \
   -v /path/to/downloads:/downloads \
   vixsrc-downloader
 ```
 
+### Docker Run - All Options
+
+```bash
+docker run -d \
+  --name vixsrc-downloader \
+  -p 8080:8080 \
+  -e TMDB_API_KEY="your_tmdb_api_key" \
+  -e PARALLEL_DOWNLOADS=3 \
+  -e SEGMENT_CONCURRENCY=5 \
+  -e DEFAULT_QUALITY=best \
+  -e DEFAULT_LANGUAGE=en \
+  -e LOG_LEVEL=INFO \
+  -e JAVA_OPTS="-Xmx512m -Xms256m" \
+  -v /path/to/downloads:/downloads \
+  --restart unless-stopped \
+  ghcr.io/stormino/vixsrc-downloader-java:latest
+```
+
 ### Docker Compose
 
+1. Create a `.env` file:
+```bash
+TMDB_API_KEY=your_tmdb_api_key
+DOWNLOAD_PATH=/path/to/downloads
+PARALLEL_DOWNLOADS=3
+DEFAULT_QUALITY=best
+LOG_LEVEL=INFO
+```
+
+2. Run with docker-compose:
 ```bash
 # Start
 docker-compose up -d
@@ -319,6 +361,35 @@ docker-compose logs -f
 # Stop
 docker-compose down
 ```
+
+### Docker Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TMDB_API_KEY` | **Yes** | - | Your TMDB API key |
+| `DOWNLOAD_BASE_PATH` | No | `/downloads` | Download directory inside container |
+| `DOWNLOAD_TEMP_PATH` | No | `/downloads/temp` | Temp files directory |
+| `PARALLEL_DOWNLOADS` | No | `3` | Max concurrent downloads |
+| `SEGMENT_CONCURRENCY` | No | `5` | HLS segment download concurrency |
+| `DEFAULT_QUALITY` | No | `best` | Default quality (best/720/1080/worst) |
+| `DEFAULT_LANGUAGE` | No | `en` | Default language code |
+| `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG/INFO/WARN/ERROR) |
+| `JAVA_OPTS` | No | `-Xmx512m -Xms256m` | JVM options |
+| `SERVER_PORT` | No | `8080` | HTTP server port |
+
+### Docker Volume Mounts
+
+| Container Path | Description |
+|----------------|-------------|
+| `/downloads` | Downloaded videos are saved here. **Must be mounted** |
+
+### Docker Image Tags
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release from main branch |
+| `v1.0.0` | Specific version release |
+| `main` | Latest build from main branch |
 
 ### Kubernetes (example)
 

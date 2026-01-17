@@ -1,19 +1,32 @@
 services:
   vixsrc-downloader:
-    build: .
+    # Use pre-built image from GitHub Container Registry
+    image: ghcr.io/stormino/vixsrc-downloader-java:latest
+    # Or build locally (uncomment below, comment image above)
+    # build: .
     container_name: vixsrc-downloader
     ports:
       - "8080:8080"
     environment:
-      - TMDB_API_KEY=${TMDB_API_KEY}
+      # Required
+      - TMDB_API_KEY=${TMDB_API_KEY:?TMDB_API_KEY is required}
+      # Optional - Download settings
       - DOWNLOAD_BASE_PATH=/downloads
       - DOWNLOAD_TEMP_PATH=/downloads/temp
-      - PARALLEL_DOWNLOADS=3
-      - SEGMENT_CONCURRENCY=5
-      - DEFAULT_QUALITY=best
-      - DEFAULT_LANGUAGE=en
-      - LOG_LEVEL=INFO
+      - PARALLEL_DOWNLOADS=${PARALLEL_DOWNLOADS:-3}
+      - SEGMENT_CONCURRENCY=${SEGMENT_CONCURRENCY:-5}
+      - DEFAULT_QUALITY=${DEFAULT_QUALITY:-best}
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
+      # Optional - JVM settings
+      - JAVA_OPTS=${JAVA_OPTS:--Xmx512m -Xms256m}
+      # Optional - Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./downloads:/downloads
-      - ./logs:/app/logs
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
