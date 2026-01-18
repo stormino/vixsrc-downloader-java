@@ -7,8 +7,11 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Copy source and build with production profile
+# Copy source and frontend theme files
 COPY src ./src
+COPY frontend ./frontend
+
+# Build with production profile
 RUN mvn clean package -DskipTests -Pproduction
 
 # Stage 2: Runtime image
