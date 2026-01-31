@@ -19,7 +19,7 @@ A production-ready video downloader for vixsrc.to with web UI, built with Spring
 
 ## Requirements
 
-- Java 17+
+- Java 21+
 - Maven 3.6+
 - ffmpeg (for video downloading)
 - Docker (optional, for containerized deployment)

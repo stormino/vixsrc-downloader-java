@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY frontend ./frontend
 RUN mvn clean package -DskipTests -Pproduction
 
 # Stage 2: Runtime image
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:21-jre-jammy
 
 LABEL org.opencontainers.image.source="https://github.com/stormino/vixsrc-downloader-java"
 LABEL org.opencontainers.image.description="VixSrc Video Downloader - Spring Boot + Vaadin"
