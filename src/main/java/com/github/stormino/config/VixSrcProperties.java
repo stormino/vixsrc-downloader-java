@@ -22,7 +22,10 @@ public class VixSrcProperties {
     @Data
     public static class Download {
         @NotBlank
-        private String basePath = "/downloads";
+        private String moviesPath = "/downloads/movies";
+
+        @NotBlank
+        private String tvShowsPath = "/downloads/tvshows";
 
         @NotBlank
         private String tempPath = "/downloads/temp";

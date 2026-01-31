@@ -11,7 +11,8 @@ services:
       # Required
       - TMDB_API_KEY=${TMDB_API_KEY:?TMDB_API_KEY is required}
       # Optional - Download settings
-      - DOWNLOAD_BASE_PATH=/downloads
+      - DOWNLOAD_MOVIES_PATH=/downloads/movies
+      - DOWNLOAD_TV_SHOWS_PATH=/downloads/tvshows
       - DOWNLOAD_TEMP_PATH=/downloads/temp
       - PARALLEL_DOWNLOADS=${PARALLEL_DOWNLOADS:-3}
       - SEGMENT_CONCURRENCY=${SEGMENT_CONCURRENCY:-5}

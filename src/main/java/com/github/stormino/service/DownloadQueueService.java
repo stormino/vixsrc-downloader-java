@@ -273,7 +273,9 @@ public class DownloadQueueService {
      * Fast path generation without metadata object
      */
     private String generateOutputPathFast(DownloadTask task) {
-        String basePath = properties.getDownload().getBasePath();
+        String basePath = task.getContentType() == DownloadTask.ContentType.TV
+                ? properties.getDownload().getTvShowsPath()
+                : properties.getDownload().getMoviesPath();
         String filename;
 
         if (task.getContentType() == DownloadTask.ContentType.TV && task.getTitle() != null) {
@@ -470,7 +472,9 @@ public class DownloadQueueService {
     }
     
     private String generateOutputPath(DownloadTask task, ContentMetadata metadata) {
-        String basePath = properties.getDownload().getBasePath();
+        String basePath = task.getContentType() == DownloadTask.ContentType.TV
+                ? properties.getDownload().getTvShowsPath()
+                : properties.getDownload().getMoviesPath();
         String filename;
         
         if (metadata != null) {
@@ -507,6 +511,11 @@ public class DownloadQueueService {
         } else {
             // Movies go directly in base path
             outputPath = Paths.get(basePath, filename).toString();
+            try {
+                Files.createDirectories(Paths.get(basePath));
+            } catch (IOException e) {
+                log.error("Failed to create directories: {}", e.getMessage());
+            }
         }
 
         return outputPath;

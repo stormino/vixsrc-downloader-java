@@ -1,6 +1,7 @@
 vixsrc:
   download:
-    base-path: ${DOWNLOAD_BASE_PATH:downloads}
+    movies-path: ${DOWNLOAD_MOVIES_PATH:downloads/movies}
+    tv-shows-path: ${DOWNLOAD_TV_SHOWS_PATH:downloads/tvshows}
     temp-path: ${DOWNLOAD_TEMP_PATH:downloads/temp}
     parallel-downloads: ${PARALLEL_DOWNLOADS:10}
     segment-concurrency: ${SEGMENT_CONCURRENCY:5}

@@ -23,7 +23,8 @@ public class SettingsView extends VerticalLayout {
     private final VixSrcProperties properties;
     
     private final TextField tmdbApiKeyField;
-    private final TextField downloadPathField;
+    private final TextField moviesPathField;
+    private final TextField tvShowsPathField;
     private final TextField tempPathField;
     private final IntegerField parallelDownloadsField;
     private final IntegerField segmentConcurrencyField;
@@ -74,11 +75,16 @@ public class SettingsView extends VerticalLayout {
         
         FormLayout downloadForm = new FormLayout();
         
-        downloadPathField = new TextField("Base Download Path");
-        downloadPathField.setValue(properties.getDownload().getBasePath());
-        downloadPathField.setWidthFull();
-        downloadPathField.setReadOnly(true);
-        
+        moviesPathField = new TextField("Movies Download Path");
+        moviesPathField.setValue(properties.getDownload().getMoviesPath());
+        moviesPathField.setWidthFull();
+        moviesPathField.setReadOnly(true);
+
+        tvShowsPathField = new TextField("TV Shows Download Path");
+        tvShowsPathField.setValue(properties.getDownload().getTvShowsPath());
+        tvShowsPathField.setWidthFull();
+        tvShowsPathField.setReadOnly(true);
+
         tempPathField = new TextField("Temporary Path");
         tempPathField.setValue(properties.getDownload().getTempPath());
         tempPathField.setWidthFull();
@@ -118,7 +124,8 @@ public class SettingsView extends VerticalLayout {
         );
         
         downloadForm.add(
-                downloadPathField,
+                moviesPathField,
+                tvShowsPathField,
                 tempPathField,
                 parallelDownloadsField,
                 segmentConcurrencyField,

@@ -37,12 +37,13 @@ WORKDIR /app
 # Copy jar from build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Create downloads directory and set permissions
-RUN mkdir -p /downloads /downloads/temp && \
+# Create downloads directories and set permissions
+RUN mkdir -p /downloads/movies /downloads/tvshows /downloads/temp && \
     chown -R vixsrc:vixsrc /app /downloads
 
 # Set environment variables
-ENV DOWNLOAD_BASE_PATH=/downloads
+ENV DOWNLOAD_MOVIES_PATH=/downloads/movies
+ENV DOWNLOAD_TV_SHOWS_PATH=/downloads/tvshows
 ENV DOWNLOAD_TEMP_PATH=/downloads/temp
 ENV SERVER_PORT=8080
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
