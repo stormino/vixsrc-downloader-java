@@ -185,7 +185,8 @@ vaadin-button,
 vaadin-text-field,
 vaadin-select,
 vaadin-combo-box {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 vaadin-button:hover {
@@ -221,21 +222,6 @@ vaadin-progress-bar::part(bar) {
     transform: scale(1.05);
 }
 
-/* Notification animations */
-vaadin-notification-card {
-    animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
 
 /* Fade in animation for content */
 .fade-in {
