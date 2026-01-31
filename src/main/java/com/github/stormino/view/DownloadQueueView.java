@@ -24,11 +24,13 @@ import com.github.stormino.model.DownloadStatus;
 import com.github.stormino.model.DownloadSubTask;
 import com.github.stormino.model.DownloadTask;
 import com.github.stormino.model.ProgressUpdate;
+import com.github.stormino.config.VixSrcProperties;
 import com.github.stormino.service.DownloadQueueService;
 import com.github.stormino.service.ProgressBroadcastService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +45,7 @@ public class DownloadQueueView extends VerticalLayout {
 
     private final DownloadQueueService downloadQueueService;
     private final ProgressBroadcastService progressBroadcastService;
+    private final VixSrcProperties properties;
     private final TreeGrid<DownloadItem> treeGrid;
     private Consumer<ProgressUpdate> progressListener;
 
@@ -54,13 +57,16 @@ public class DownloadQueueView extends VerticalLayout {
     // Status bar fields
     private Span statusCountsSpan;
     private Span overallSpeedSpan;
+    private Span diskSpaceSpan;
     private long lastStatusBarUpdate = 0;
     private static final long STATUS_BAR_THROTTLE_MS = 500;
 
     public DownloadQueueView(DownloadQueueService downloadQueueService,
-                             ProgressBroadcastService progressBroadcastService) {
+                             ProgressBroadcastService progressBroadcastService,
+                             VixSrcProperties properties) {
         this.downloadQueueService = downloadQueueService;
         this.progressBroadcastService = progressBroadcastService;
+        this.properties = properties;
         
         setSizeFull();
         setPadding(true);
@@ -79,7 +85,11 @@ public class DownloadQueueView extends VerticalLayout {
         overallSpeedSpan.addClassNames(LumoUtility.FontSize.SMALL, LumoUtility.FontWeight.SEMIBOLD);
         overallSpeedSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
-        VerticalLayout titleAndStatus = new VerticalLayout(title, statusCountsSpan, overallSpeedSpan);
+        diskSpaceSpan = new Span();
+        diskSpaceSpan.addClassNames(LumoUtility.FontSize.SMALL);
+        diskSpaceSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        VerticalLayout titleAndStatus = new VerticalLayout(title, statusCountsSpan, overallSpeedSpan, diskSpaceSpan);
         titleAndStatus.setSpacing(false);
         titleAndStatus.setPadding(false);
 
@@ -221,7 +231,22 @@ public class DownloadQueueView extends VerticalLayout {
                 ? "Overall speed: " + formatSpeed(totalBytesPerSecond)
                 : "";
         overallSpeedSpan.setText(speedText);
+
+        // Update disk space
+        updateDiskSpace();
     }
+
+    private void updateDiskSpace() {
+        File moviesDir = new File(properties.getDownload().getMoviesPath());
+        long freeBytes = moviesDir.getUsableSpace();
+        if (freeBytes > 0) {
+            diskSpaceSpan.setText("Free disk space: " + formatBytes(freeBytes));
+        } else {
+            diskSpaceSpan.setText("");
+        }
+    }
+
+
 
     private double parseSpeed(String speedStr) {
         if (speedStr == null || speedStr.isEmpty()) {
