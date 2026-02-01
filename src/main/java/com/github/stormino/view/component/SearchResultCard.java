@@ -60,7 +60,7 @@ public class SearchResultCard extends VerticalLayout {
         getStyle()
                 .set("gap", "0.5rem")
                 .set("transition", "transform 0.2s ease, box-shadow 0.2s ease")
-                .set("cursor", "default");
+                .set("cursor", "pointer");
 
         // Set background gradient based on content type with hover effect
         if (type == DownloadTask.ContentType.MOVIE) {
@@ -160,8 +160,17 @@ public class SearchResultCard extends VerticalLayout {
         downloadBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         downloadBtn.addClickListener(e -> openDownloadDialog());
         downloadBtn.getStyle().set("margin-top", "0.25rem");
+        downloadBtn.getElement().addEventListener("click", e -> {}).addEventData("event.stopPropagation()");
 
         add(titleRow, metaRow, overview, downloadBtn);
+
+        // Make card clickable to open TMDB page
+        if (content.getTmdbId() != null) {
+            String tmdbPath = type == DownloadTask.ContentType.MOVIE ? "movie" : "tv";
+            String tmdbUrl = "https://www.themoviedb.org/" + tmdbPath + "/" + content.getTmdbId();
+            getElement().addEventListener("click", e ->
+                    getElement().executeJs("window.open($0, '_blank')", tmdbUrl));
+        }
     }
     
     private void openDownloadDialog() {
