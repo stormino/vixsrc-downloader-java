@@ -14,7 +14,7 @@
 
     <groupId>com.vixsrc</groupId>
     <artifactId>vixsrc-downloader</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0</version><!-- project-version -->
     <name>VixSrc Downloader</name>
     <description>Video downloader from vixsrc.to with Vaadin UI</description>
 
